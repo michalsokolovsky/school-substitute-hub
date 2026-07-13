@@ -128,7 +128,8 @@ function AbsencePage() {
     recent?.forEach((r) => recentCount.set(r.substitute_teacher_id, (recentCount.get(r.substitute_teacher_id) ?? 0) + 1));
 
     // Build lookup: teacher -> lesson -> slot (only for available slots)
-    const availByTeacher = new Map<string, Map<number, (typeof allSlots)[number]>>();
+    type SlotRow = NonNullable<typeof allSlots>[number];
+    const availByTeacher = new Map<string, Map<number, SlotRow>>();
     allSlots?.forEach((s) => {
       let m = availByTeacher.get(s.teacher_id);
       if (!m) {
