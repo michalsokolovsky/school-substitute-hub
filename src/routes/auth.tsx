@@ -13,6 +13,8 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -23,21 +25,56 @@ function AuthPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      setError("אימייל או סיסמה שגויים");
-      return;
+    if (mode === "signin") {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (error) {
+        setError("אימייל או סיסמה שגויים");
+        return;
+      }
+      router.navigate({ to: "/", replace: true });
+    } else {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: window.location.origin },
+      });
+      setLoading(false);
+      if (error) {
+        setError(error.message || "ההרשמה נכשלה");
+        return;
+      }
+      if (data.session) {
+        router.navigate({ to: "/", replace: true });
+      } else {
+        setInfo("נשלח אימייל לאימות החשבון. לאחר האימות ניתן להתחבר.");
+      }
     }
-    router.navigate({ to: "/", replace: true });
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md rounded-xl border bg-card p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-foreground">התחברות</h1>
+        <h1 className="text-2xl font-bold text-foreground">{mode === "signin" ? "התחברות" : "הרשמה"}</h1>
         <p className="mt-1 text-sm text-muted-foreground">מערכת ניהול מורות ממלאות מקום</p>
+        <div className="mt-4 grid grid-cols-2 gap-1 rounded-md bg-muted p-1 text-sm">
+          <button
+            type="button"
+            onClick={() => { setMode("signin"); setError(null); setInfo(null); }}
+            className={`rounded px-3 py-1.5 font-medium transition ${mode === "signin" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+          >
+            התחברות
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode("signup"); setError(null); setInfo(null); }}
+            className={`rounded px-3 py-1.5 font-medium transition ${mode === "signup" ? "bg-background shadow-sm" : "text-muted-foreground"}`}
+          >
+            הרשמה
+          </button>
+        </div>
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium">אימייל</label>
@@ -60,12 +97,13 @@ function AuthPage() {
             />
           </div>
           {error && <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+          {info && <div className="rounded-md bg-primary/10 px-3 py-2 text-sm text-foreground">{info}</div>}
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
           >
-            {loading ? "מתחבר..." : "התחברות"}
+            {loading ? "רגע..." : mode === "signin" ? "התחברות" : "הרשמה"}
           </button>
         </form>
       </div>
