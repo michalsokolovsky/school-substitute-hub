@@ -14,16 +14,265 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      absence_lessons: {
+        Row: {
+          ability_group: string | null
+          absence_request_id: string
+          class_name: string | null
+          created_at: string
+          grade_level: string | null
+          id: string
+          lesson_number: number
+          subject: string | null
+          substitute_teacher_id: string | null
+        }
+        Insert: {
+          ability_group?: string | null
+          absence_request_id: string
+          class_name?: string | null
+          created_at?: string
+          grade_level?: string | null
+          id?: string
+          lesson_number: number
+          subject?: string | null
+          substitute_teacher_id?: string | null
+        }
+        Update: {
+          ability_group?: string | null
+          absence_request_id?: string
+          class_name?: string | null
+          created_at?: string
+          grade_level?: string | null
+          id?: string
+          lesson_number?: number
+          subject?: string | null
+          substitute_teacher_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absence_lessons_absence_request_id_fkey"
+            columns: ["absence_request_id"]
+            isOneToOne: false
+            referencedRelation: "absence_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "absence_lessons_substitute_teacher_id_fkey"
+            columns: ["substitute_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      absence_requests: {
+        Row: {
+          absence_date: string
+          admin_note: string | null
+          created_at: string
+          decided_at: string | null
+          id: string
+          status: Database["public"]["Enums"]["absence_status"]
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          absence_date: string
+          admin_note?: string | null
+          created_at?: string
+          decided_at?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["absence_status"]
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          absence_date?: string
+          admin_note?: string | null
+          created_at?: string
+          decided_at?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["absence_status"]
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absence_requests_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedule_slots: {
+        Row: {
+          ability_group: string | null
+          class_name: string | null
+          created_at: string
+          day: number
+          grade_level: string | null
+          id: string
+          lesson_number: number
+          status: Database["public"]["Enums"]["slot_status"]
+          subject: string | null
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          ability_group?: string | null
+          class_name?: string | null
+          created_at?: string
+          day: number
+          grade_level?: string | null
+          id?: string
+          lesson_number: number
+          status: Database["public"]["Enums"]["slot_status"]
+          subject?: string | null
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          ability_group?: string | null
+          class_name?: string | null
+          created_at?: string
+          day?: number
+          grade_level?: string | null
+          id?: string
+          lesson_number?: number
+          status?: Database["public"]["Enums"]["slot_status"]
+          subject?: string | null
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_slots_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      substitute_assignments: {
+        Row: {
+          absence_lesson_id: string
+          assignment_date: string
+          created_at: string
+          id: string
+          lesson_number: number
+          substitute_teacher_id: string
+        }
+        Insert: {
+          absence_lesson_id: string
+          assignment_date: string
+          created_at?: string
+          id?: string
+          lesson_number: number
+          substitute_teacher_id: string
+        }
+        Update: {
+          absence_lesson_id?: string
+          assignment_date?: string
+          created_at?: string
+          id?: string
+          lesson_number?: number
+          substitute_teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "substitute_assignments_absence_lesson_id_fkey"
+            columns: ["absence_lesson_id"]
+            isOneToOne: false
+            referencedRelation: "absence_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "substitute_assignments_substitute_teacher_id_fkey"
+            columns: ["substitute_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teachers: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          phone: string | null
+          schedule_locked: boolean
+          type: Database["public"]["Enums"]["teacher_type"]
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          phone?: string | null
+          schedule_locked?: boolean
+          type?: Database["public"]["Enums"]["teacher_type"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          schedule_locked?: boolean
+          type?: Database["public"]["Enums"]["teacher_type"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      absence_status: "pending" | "approved" | "rejected"
+      app_role: "admin" | "teacher"
+      slot_status: "teaching" | "free" | "available" | "unavailable"
+      teacher_type: "regular" | "external"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +399,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      absence_status: ["pending", "approved", "rejected"],
+      app_role: ["admin", "teacher"],
+      slot_status: ["teaching", "free", "available", "unavailable"],
+      teacher_type: ["regular", "external"],
+    },
   },
 } as const
