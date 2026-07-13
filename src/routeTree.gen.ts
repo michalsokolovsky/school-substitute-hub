@@ -17,6 +17,7 @@ import { Route as AuthenticatedMyRequestsRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAbsenceRouteImport } from './routes/_authenticated/absence'
 import { Route as AuthenticatedAdminTeachersRouteImport } from './routes/_authenticated/admin.teachers'
+import { Route as AuthenticatedAdminHistoryRouteImport } from './routes/_authenticated/admin.history'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -58,6 +59,12 @@ const AuthenticatedAdminTeachersRoute =
     path: '/teachers',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminHistoryRoute =
+  AuthenticatedAdminHistoryRouteImport.update({
+    id: '/history',
+    path: '/history',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/my-requests': typeof AuthenticatedMyRequestsRoute
   '/schedule': typeof AuthenticatedScheduleRoute
+  '/admin/history': typeof AuthenticatedAdminHistoryRoute
   '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
 }
 export interface FileRoutesByTo {
@@ -75,6 +83,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/my-requests': typeof AuthenticatedMyRequestsRoute
   '/schedule': typeof AuthenticatedScheduleRoute
+  '/admin/history': typeof AuthenticatedAdminHistoryRoute
   '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
 }
 export interface FileRoutesById {
@@ -86,6 +95,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/my-requests': typeof AuthenticatedMyRequestsRoute
   '/_authenticated/schedule': typeof AuthenticatedScheduleRoute
+  '/_authenticated/admin/history': typeof AuthenticatedAdminHistoryRoute
   '/_authenticated/admin/teachers': typeof AuthenticatedAdminTeachersRoute
 }
 export interface FileRouteTypes {
@@ -97,6 +107,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/my-requests'
     | '/schedule'
+    | '/admin/history'
     | '/admin/teachers'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -106,6 +117,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/my-requests'
     | '/schedule'
+    | '/admin/history'
     | '/admin/teachers'
   id:
     | '__root__'
@@ -116,6 +128,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/my-requests'
     | '/_authenticated/schedule'
+    | '/_authenticated/admin/history'
     | '/_authenticated/admin/teachers'
   fileRoutesById: FileRoutesById
 }
@@ -183,14 +196,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminTeachersRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/history': {
+      id: '/_authenticated/admin/history'
+      path: '/history'
+      fullPath: '/admin/history'
+      preLoaderRoute: typeof AuthenticatedAdminHistoryRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
   }
 }
 
 interface AuthenticatedAdminRouteChildren {
+  AuthenticatedAdminHistoryRoute: typeof AuthenticatedAdminHistoryRoute
   AuthenticatedAdminTeachersRoute: typeof AuthenticatedAdminTeachersRoute
 }
 
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
+  AuthenticatedAdminHistoryRoute: AuthenticatedAdminHistoryRoute,
   AuthenticatedAdminTeachersRoute: AuthenticatedAdminTeachersRoute,
 }
 
