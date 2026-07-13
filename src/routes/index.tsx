@@ -1,24 +1,46 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { useRouter } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
+  ssr: false,
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
+  const router = useRouter();
+  useEffect(() => {
+    (async () => {
+      const { data: userRes } = await supabase.auth.getUser();
+      if (!userRes.user) {
+        router.navigate({ to: "/auth", replace: true });
+        return;
+      }
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userRes.user.id);
+      const isAdmin = roles?.some((r) => r.role === "admin");
+      if (isAdmin) {
+        router.navigate({ to: "/admin", replace: true });
+      } else {
+        const { data: teacher } = await supabase
+          .from("teachers")
+          .select("schedule_locked")
+          .eq("user_id", userRes.user.id)
+          .maybeSingle();
+        if (teacher && !teacher.schedule_locked) {
+          router.navigate({ to: "/schedule", replace: true });
+        } else {
+          router.navigate({ to: "/absence", replace: true });
+        }
+      }
+    })();
+  }, [router]);
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <p className="text-muted-foreground">טוען...</p>
     </div>
   );
 }
