@@ -1,0 +1,108 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
+
+async function sendEmail(input: {
+  to: string;
+  subject: string;
+  html: string;
+  from?: string;
+}) {
+  const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
+  const RESEND_API_KEY = process.env.RESEND_API_KEY;
+  if (!LOVABLE_API_KEY || !RESEND_API_KEY) {
+    console.log("[email skipped — Resend not configured]", input.to, input.subject);
+    return { skipped: true };
+  }
+  const from = input.from ?? "מערכת ממלאות מקום <onboarding@resend.dev>";
+  const res = await fetch(`${GATEWAY_URL}/emails`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "X-Connection-Api-Key": RESEND_API_KEY,
+    },
+    body: JSON.stringify({ from, to: [input.to], subject: input.subject, html: input.html }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    console.error("[email send failed]", res.status, text);
+    return { error: text };
+  }
+  return { ok: true };
+}
+
+export const notifyAdminNewRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        absentTeacherName: z.string(),
+        absenceDate: z.string(),
+        lessons: z.array(z.object({ lesson: z.number(), sub: z.string() })),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    // Find admin emails
+    const { data: admins } = await context.supabase
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin");
+    if (!admins || admins.length === 0) return { skipped: true };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const emails: string[] = [];
+    for (const a of admins) {
+      const { data: u } = await supabaseAdmin.auth.admin.getUserById(a.user_id);
+      if (u.user?.email) emails.push(u.user.email);
+    }
+
+    const html = `
+      <div dir="rtl" style="font-family: Arial, sans-serif;">
+        <h2>בקשת ממלאת מקום חדשה</h2>
+        <p><strong>מורה נעדרת:</strong> ${data.absentTeacherName}</p>
+        <p><strong>תאריך:</strong> ${data.absenceDate}</p>
+        <table border="1" cellpadding="6" style="border-collapse:collapse;">
+          <thead><tr><th>שיעור</th><th>ממלאת מקום</th></tr></thead>
+          <tbody>
+            ${data.lessons.map((l) => `<tr><td>${l.lesson}</td><td>${l.sub}</td></tr>`).join("")}
+          </tbody>
+        </table>
+        <p>יש להיכנס למערכת לאישור או דחייה.</p>
+      </div>
+    `;
+    for (const to of emails) {
+      await sendEmail({ to, subject: "בקשת ממלאת מקום חדשה", html });
+    }
+    return { ok: true };
+  });
+
+export const notifyTeacherDecision = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        teacherEmail: z.string().email(),
+        absenceDate: z.string(),
+        approved: z.boolean(),
+        note: z.string().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const html = `
+      <div dir="rtl" style="font-family: Arial, sans-serif;">
+        <h2>${data.approved ? "בקשת ההיעדרות אושרה" : "בקשת ההיעדרות נדחתה"}</h2>
+        <p>תאריך: ${data.absenceDate}</p>
+        ${data.note ? `<p>הערה: ${data.note}</p>` : ""}
+      </div>
+    `;
+    return sendEmail({
+      to: data.teacherEmail,
+      subject: data.approved ? "בקשת ההיעדרות אושרה" : "בקשת ההיעדרות נדחתה",
+      html,
+    });
+  });
