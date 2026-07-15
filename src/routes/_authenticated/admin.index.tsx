@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { notifyTeacherDecision } from "@/lib/email.functions";
 import { claimAdminIfNone } from "@/lib/admin.functions";
 
-export const Route = createFileRoute("/_authenticated/admin")({
+export const Route = createFileRoute("/_authenticated/admin/")({
   component: AdminDashboard,
 });
 

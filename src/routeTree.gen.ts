@@ -14,8 +14,8 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedScheduleRouteImport } from './routes/_authenticated/schedule'
 import { Route as AuthenticatedMyRequestsRouteImport } from './routes/_authenticated/my-requests'
-import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAbsenceRouteImport } from './routes/_authenticated/absence'
+import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminTeachersRouteImport } from './routes/_authenticated/admin.teachers'
 import { Route as AuthenticatedAdminHistoryRouteImport } from './routes/_authenticated/admin.history'
 
@@ -43,48 +43,48 @@ const AuthenticatedMyRequestsRoute = AuthenticatedMyRequestsRouteImport.update({
   path: '/my-requests',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedAbsenceRoute = AuthenticatedAbsenceRouteImport.update({
   id: '/absence',
   path: '/absence',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
+  id: '/admin/',
+  path: '/admin/',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAdminTeachersRoute =
   AuthenticatedAdminTeachersRouteImport.update({
-    id: '/teachers',
-    path: '/teachers',
-    getParentRoute: () => AuthenticatedAdminRoute,
+    id: '/admin/teachers',
+    path: '/admin/teachers',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminHistoryRoute =
   AuthenticatedAdminHistoryRouteImport.update({
-    id: '/history',
-    path: '/history',
-    getParentRoute: () => AuthenticatedAdminRoute,
+    id: '/admin/history',
+    path: '/admin/history',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/absence': typeof AuthenticatedAbsenceRoute
-  '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/my-requests': typeof AuthenticatedMyRequestsRoute
   '/schedule': typeof AuthenticatedScheduleRoute
   '/admin/history': typeof AuthenticatedAdminHistoryRoute
   '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
+  '/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/absence': typeof AuthenticatedAbsenceRoute
-  '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/my-requests': typeof AuthenticatedMyRequestsRoute
   '/schedule': typeof AuthenticatedScheduleRoute
   '/admin/history': typeof AuthenticatedAdminHistoryRoute
   '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
+  '/admin': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -92,11 +92,11 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/absence': typeof AuthenticatedAbsenceRoute
-  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/my-requests': typeof AuthenticatedMyRequestsRoute
   '/_authenticated/schedule': typeof AuthenticatedScheduleRoute
   '/_authenticated/admin/history': typeof AuthenticatedAdminHistoryRoute
   '/_authenticated/admin/teachers': typeof AuthenticatedAdminTeachersRoute
+  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -104,32 +104,32 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/absence'
-    | '/admin'
     | '/my-requests'
     | '/schedule'
     | '/admin/history'
     | '/admin/teachers'
+    | '/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/absence'
-    | '/admin'
     | '/my-requests'
     | '/schedule'
     | '/admin/history'
     | '/admin/teachers'
+    | '/admin'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/absence'
-    | '/_authenticated/admin'
     | '/_authenticated/my-requests'
     | '/_authenticated/schedule'
     | '/_authenticated/admin/history'
     | '/_authenticated/admin/teachers'
+    | '/_authenticated/admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -175,13 +175,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMyRequestsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/admin': {
-      id: '/_authenticated/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AuthenticatedAdminRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/absence': {
       id: '/_authenticated/absence'
       path: '/absence'
@@ -189,48 +182,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAbsenceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/': {
+      id: '/_authenticated/admin/'
+      path: '/admin'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/admin/teachers': {
       id: '/_authenticated/admin/teachers'
-      path: '/teachers'
+      path: '/admin/teachers'
       fullPath: '/admin/teachers'
       preLoaderRoute: typeof AuthenticatedAdminTeachersRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/history': {
       id: '/_authenticated/admin/history'
-      path: '/history'
+      path: '/admin/history'
       fullPath: '/admin/history'
       preLoaderRoute: typeof AuthenticatedAdminHistoryRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
   }
 }
 
-interface AuthenticatedAdminRouteChildren {
-  AuthenticatedAdminHistoryRoute: typeof AuthenticatedAdminHistoryRoute
-  AuthenticatedAdminTeachersRoute: typeof AuthenticatedAdminTeachersRoute
-}
-
-const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
-  AuthenticatedAdminHistoryRoute: AuthenticatedAdminHistoryRoute,
-  AuthenticatedAdminTeachersRoute: AuthenticatedAdminTeachersRoute,
-}
-
-const AuthenticatedAdminRouteWithChildren =
-  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
-
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAbsenceRoute: typeof AuthenticatedAbsenceRoute
-  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedMyRequestsRoute: typeof AuthenticatedMyRequestsRoute
   AuthenticatedScheduleRoute: typeof AuthenticatedScheduleRoute
+  AuthenticatedAdminHistoryRoute: typeof AuthenticatedAdminHistoryRoute
+  AuthenticatedAdminTeachersRoute: typeof AuthenticatedAdminTeachersRoute
+  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAbsenceRoute: AuthenticatedAbsenceRoute,
-  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedMyRequestsRoute: AuthenticatedMyRequestsRoute,
   AuthenticatedScheduleRoute: AuthenticatedScheduleRoute,
+  AuthenticatedAdminHistoryRoute: AuthenticatedAdminHistoryRoute,
+  AuthenticatedAdminTeachersRoute: AuthenticatedAdminTeachersRoute,
+  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -244,13 +235,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
