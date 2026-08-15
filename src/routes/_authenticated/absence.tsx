@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { formatClassLabel } from "@/lib/schedule";
 import { scoreCandidate, type CandidateSlot, type MissedLesson } from "@/lib/scoring";
 
 export const Route = createFileRoute("/_authenticated/absence")({
@@ -309,8 +310,8 @@ function AbsencePage() {
                       />
                       <span className="font-medium">שיעור {l}</span>
                       <span className="text-sm text-muted-foreground">
-                        {s.subject} · {s.class_name} · שכבה {s.grade_level}
-                        {s.ability_group ? ` · קבוצה ${s.ability_group}` : ""}
+                        {s.subject} · כיתה {formatClassLabel(s.grade_level ?? "", s.class_name ?? "")}
+                        {s.ability_group ? ` · הקבצה ${s.ability_group}` : ""}
                       </span>
                     </label>
                   );
@@ -338,8 +339,9 @@ function AbsencePage() {
               <div key={l} className="rounded-lg border bg-card p-4">
                 <div className="flex items-center justify-between border-b pb-2">
                   <h3 className="font-semibold">
-                    שיעור {l} · {missed?.subject} · {missed?.class_name}
-                    {missed?.ability_group ? ` · קבוצה ${missed.ability_group}` : ""}
+                    שיעור {l} · {missed?.subject} · כיתה{" "}
+                    {formatClassLabel(missed?.grade_level ?? "", missed?.class_name ?? "")}
+                    {missed?.ability_group ? ` · הקבצה ${missed.ability_group}` : ""}
                   </h3>
                   {picked && <span className="text-sm text-primary">נבחרה: {picked.full_name}</span>}
                 </div>
@@ -417,7 +419,7 @@ function AbsencePage() {
                   <tr key={l}>
                     <td className="border p-2">{l}</td>
                     <td className="border p-2">
-                      {m?.subject} · {m?.class_name}
+                      {m?.subject} · כיתה {formatClassLabel(m?.grade_level ?? "", m?.class_name ?? "")}
                     </td>
                     <td className="border p-2 font-medium">{c?.full_name}</td>
                   </tr>

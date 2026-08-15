@@ -9,7 +9,15 @@ async function assertAdmin(context: { supabase: any; userId: string }) {
     .eq("user_id", context.userId)
     .eq("role", "admin")
     .maybeSingle();
-  if (!data) throw new Error("Forbidden");
+  if (!data) throw new Error("אין לך הרשאות מנהלת. הריצי את שאילתת ה-SQL להענקת admin.");
+}
+
+function formatServerError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("SUPABASE_SERVICE_ROLE_KEY")) {
+    return "חסר מפתח SUPABASE_SERVICE_ROLE_KEY בקובץ .env — נדרש לייבוא אקסל והענקת הרשאות.";
+  }
+  return message;
 }
 
 export const importTeachers = createServerFn({ method: "POST" })
@@ -31,49 +39,43 @@ export const importTeachers = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const results: { email: string; ok: boolean; error?: string; password?: string }[] = [];
+    let supabaseAdmin;
+    try {
+      ({ supabaseAdmin } = await import("@/integrations/supabase/client.server"));
+    } catch (error) {
+      throw new Error(formatServerError(error));
+    }
+    const results: { email: string; ok: boolean; error?: string }[] = [];
 
     for (const row of data.rows) {
-      const password = row.password ?? Math.random().toString(36).slice(2, 10) + "A1";
       try {
-        // Create auth user (or skip if exists)
-        const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-          email: row.email,
-          password,
-          email_confirm: true,
-        });
-        let userId: string | null = created?.user?.id ?? null;
-        if (createErr && !userId) {
-          // maybe already exists — try to find via listUsers
-          const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-          userId = list.users.find((u) => u.email?.toLowerCase() === row.email.toLowerCase())?.id ?? null;
-        }
-
-        // Upsert teacher
-        const { error: upErr } = await supabaseAdmin
+        const { data: existing } = await supabaseAdmin
           .from("teachers")
-          .upsert(
-            {
-              email: row.email,
+          .select("id")
+          .eq("email", row.email)
+          .maybeSingle();
+
+        if (existing) {
+          const { error: upErr } = await supabaseAdmin
+            .from("teachers")
+            .update({
               full_name: row.full_name,
               phone: row.phone ?? null,
               type: row.type,
-              user_id: userId,
-            },
-            { onConflict: "email" },
-          );
-        if (upErr) throw upErr;
-
-        // Ensure teacher role
-        if (userId) {
-          await supabaseAdmin.from("user_roles").upsert(
-            { user_id: userId, role: "teacher" },
-            { onConflict: "user_id,role" },
-          );
+            })
+            .eq("id", existing.id);
+          if (upErr) throw upErr;
+        } else {
+          const { error: insErr } = await supabaseAdmin.from("teachers").insert({
+            email: row.email,
+            full_name: row.full_name,
+            phone: row.phone ?? null,
+            type: row.type,
+          });
+          if (insErr) throw insErr;
         }
 
-        results.push({ email: row.email, ok: true, password: created?.user ? password : undefined });
+        results.push({ email: row.email, ok: true });
       } catch (e: any) {
         results.push({ email: row.email, ok: false, error: e.message ?? String(e) });
       }
@@ -81,15 +83,54 @@ export const importTeachers = createServerFn({ method: "POST" })
     return { results };
   });
 
+export const clearTeacherAuthAccounts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context);
+    let supabaseAdmin;
+    try {
+      ({ supabaseAdmin } = await import("@/integrations/supabase/client.server"));
+    } catch (error) {
+      throw new Error(formatServerError(error));
+    }
+
+    const { data: adminRoles } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "admin");
+    const adminIds = new Set((adminRoles ?? []).map((r) => r.user_id));
+
+    const { data: teachers } = await supabaseAdmin
+      .from("teachers")
+      .select("user_id")
+      .not("user_id", "is", null);
+
+    let deleted = 0;
+    for (const t of teachers ?? []) {
+      if (!t.user_id || adminIds.has(t.user_id)) continue;
+      const { error } = await supabaseAdmin.auth.admin.deleteUser(t.user_id);
+      if (!error) {
+        await supabaseAdmin.from("teachers").update({ user_id: null }).eq("user_id", t.user_id);
+        deleted++;
+      }
+    }
+    return { deleted };
+  });
+
 export const grantAdmin = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ email: z.string().email() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let supabaseAdmin;
+    try {
+      ({ supabaseAdmin } = await import("@/integrations/supabase/client.server"));
+    } catch (error) {
+      throw new Error(formatServerError(error));
+    }
     const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
     const user = list.users.find((u) => u.email?.toLowerCase() === data.email.toLowerCase());
-    if (!user) throw new Error("User not found");
+    if (!user) throw new Error("משתמש לא נמצא — צרי אותו קודם ב-Supabase Authentication");
     await supabaseAdmin
       .from("user_roles")
       .upsert({ user_id: user.id, role: "admin" }, { onConflict: "user_id,role" });

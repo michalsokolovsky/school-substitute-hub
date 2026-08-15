@@ -1,11 +1,13 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyTeacherDecision } from "@/lib/email.functions";
 import { claimAdminIfNone } from "@/lib/admin.functions";
+import { requireAdmin } from "@/lib/auth-guards";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
+  beforeLoad: () => requireAdmin({ allowBootstrap: true }),
   component: AdminDashboard,
 });
 
@@ -16,6 +18,7 @@ type PendingRow = {
   admin_note: string | null;
   teachers: { full_name: string; email: string } | null;
   absence_lessons: {
+    id: string;
     lesson_number: number;
     subject: string | null;
     class_name: string | null;
@@ -25,7 +28,7 @@ type PendingRow = {
 };
 
 function AdminDashboard() {
-  const router = useRouter();
+  const { bootstrap } = Route.useRouteContext();
   const [rows, setRows] = useState<PendingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -37,7 +40,7 @@ function AdminDashboard() {
     const { data } = await supabase
       .from("absence_requests")
       .select(
-        "id, absence_date, status, admin_note, teachers:teacher_id(full_name, email), absence_lessons(lesson_number, subject, class_name, substitute_teacher_id, teachers:substitute_teacher_id(full_name))",
+        "id, absence_date, status, admin_note, teachers:teacher_id(full_name, email), absence_lessons(id, lesson_number, subject, class_name, substitute_teacher_id, teachers:substitute_teacher_id(full_name))",
       )
       .eq("status", "pending")
       .order("absence_date");
@@ -46,30 +49,17 @@ function AdminDashboard() {
   }
 
   useEffect(() => {
-    // check admin, auto-claim if none exist yet
     (async () => {
-      const { data: userRes } = await supabase.auth.getUser();
-      if (!userRes.user) return;
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userRes.user.id);
-      const isAdmin = roles?.some((r) => r.role === "admin");
-      if (!isAdmin) {
+      if (bootstrap) {
         try {
-          const res = await claimFn();
-          if (!res.claimed) {
-            router.navigate({ to: "/" });
-            return;
-          }
+          await claimFn();
         } catch {
-          router.navigate({ to: "/" });
           return;
         }
       }
       load();
     })();
-  }, []);
+  }, [bootstrap]);
 
   async function decide(row: PendingRow, approved: boolean) {
     const status = approved ? "approved" : "rejected";
@@ -83,17 +73,10 @@ function AdminDashboard() {
       return;
     }
     if (!approved) {
-      // Remove assignments so substitutes are freed
-      const lessonIds = row.absence_lessons.map((l) => l);
-      // best-effort: delete via cascade would happen only if we deleted the request; keep request but drop assignments
-      await supabase
-        .from("substitute_assignments")
-        .delete()
-        .in(
-          "absence_lesson_id",
-          row.absence_lessons.map((l) => (l as any).id).filter(Boolean),
-        );
-      void lessonIds;
+      const lessonIds = row.absence_lessons.map((l) => l.id).filter(Boolean);
+      if (lessonIds.length > 0) {
+        await supabase.from("substitute_assignments").delete().in("absence_lesson_id", lessonIds);
+      }
     }
     try {
       if (row.teachers?.email) {

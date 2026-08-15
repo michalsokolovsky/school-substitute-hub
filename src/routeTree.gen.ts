@@ -12,12 +12,18 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthIndexRouteImport } from './routes/auth.index'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
+import { Route as AuthRegisterRouteImport } from './routes/auth.register'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as AuthenticatedScheduleRouteImport } from './routes/_authenticated/schedule'
 import { Route as AuthenticatedMyRequestsRouteImport } from './routes/_authenticated/my-requests'
 import { Route as AuthenticatedAbsenceRouteImport } from './routes/_authenticated/absence'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminTeachersRouteImport } from './routes/_authenticated/admin.teachers'
 import { Route as AuthenticatedAdminHistoryRouteImport } from './routes/_authenticated/admin.history'
+import { Route as AuthenticatedAdminTeachersIndexRouteImport } from './routes/_authenticated/admin.teachers.index'
+import { Route as AuthenticatedAdminTeachersTeacherIdScheduleRouteImport } from './routes/_authenticated/admin.teachers.$teacherId.schedule'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -32,6 +38,26 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthIndexRoute = AuthIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthRegisterRoute = AuthRegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => AuthRoute,
 } as any)
 const AuthenticatedScheduleRoute = AuthenticatedScheduleRouteImport.update({
   id: '/schedule',
@@ -65,38 +91,66 @@ const AuthenticatedAdminHistoryRoute =
     path: '/admin/history',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedAdminTeachersIndexRoute =
+  AuthenticatedAdminTeachersIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedAdminTeachersRoute,
+  } as any)
+const AuthenticatedAdminTeachersTeacherIdScheduleRoute =
+  AuthenticatedAdminTeachersTeacherIdScheduleRouteImport.update({
+    id: '/$teacherId/schedule',
+    path: '/$teacherId/schedule',
+    getParentRoute: () => AuthenticatedAdminTeachersRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/absence': typeof AuthenticatedAbsenceRoute
   '/my-requests': typeof AuthenticatedMyRequestsRoute
   '/schedule': typeof AuthenticatedScheduleRoute
+  '/auth/callback': typeof AuthCallbackRoute
+  '/auth/register': typeof AuthRegisterRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/auth/': typeof AuthIndexRoute
   '/admin/history': typeof AuthenticatedAdminHistoryRoute
-  '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
+  '/admin/teachers': typeof AuthenticatedAdminTeachersRouteWithChildren
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/admin/teachers/': typeof AuthenticatedAdminTeachersIndexRoute
+  '/admin/teachers/$teacherId/schedule': typeof AuthenticatedAdminTeachersTeacherIdScheduleRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
   '/absence': typeof AuthenticatedAbsenceRoute
   '/my-requests': typeof AuthenticatedMyRequestsRoute
   '/schedule': typeof AuthenticatedScheduleRoute
+  '/auth/callback': typeof AuthCallbackRoute
+  '/auth/register': typeof AuthRegisterRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/auth': typeof AuthIndexRoute
   '/admin/history': typeof AuthenticatedAdminHistoryRoute
-  '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/admin/teachers': typeof AuthenticatedAdminTeachersIndexRoute
+  '/admin/teachers/$teacherId/schedule': typeof AuthenticatedAdminTeachersTeacherIdScheduleRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/_authenticated/absence': typeof AuthenticatedAbsenceRoute
   '/_authenticated/my-requests': typeof AuthenticatedMyRequestsRoute
   '/_authenticated/schedule': typeof AuthenticatedScheduleRoute
+  '/auth/callback': typeof AuthCallbackRoute
+  '/auth/register': typeof AuthRegisterRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
+  '/auth/': typeof AuthIndexRoute
   '/_authenticated/admin/history': typeof AuthenticatedAdminHistoryRoute
-  '/_authenticated/admin/teachers': typeof AuthenticatedAdminTeachersRoute
+  '/_authenticated/admin/teachers': typeof AuthenticatedAdminTeachersRouteWithChildren
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/_authenticated/admin/teachers/': typeof AuthenticatedAdminTeachersIndexRoute
+  '/_authenticated/admin/teachers/$teacherId/schedule': typeof AuthenticatedAdminTeachersTeacherIdScheduleRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -106,19 +160,29 @@ export interface FileRouteTypes {
     | '/absence'
     | '/my-requests'
     | '/schedule'
+    | '/auth/callback'
+    | '/auth/register'
+    | '/auth/reset-password'
+    | '/auth/'
     | '/admin/history'
     | '/admin/teachers'
     | '/admin/'
+    | '/admin/teachers/'
+    | '/admin/teachers/$teacherId/schedule'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/auth'
     | '/absence'
     | '/my-requests'
     | '/schedule'
+    | '/auth/callback'
+    | '/auth/register'
+    | '/auth/reset-password'
+    | '/auth'
     | '/admin/history'
-    | '/admin/teachers'
     | '/admin'
+    | '/admin/teachers'
+    | '/admin/teachers/$teacherId/schedule'
   id:
     | '__root__'
     | '/'
@@ -127,15 +191,21 @@ export interface FileRouteTypes {
     | '/_authenticated/absence'
     | '/_authenticated/my-requests'
     | '/_authenticated/schedule'
+    | '/auth/callback'
+    | '/auth/register'
+    | '/auth/reset-password'
+    | '/auth/'
     | '/_authenticated/admin/history'
     | '/_authenticated/admin/teachers'
     | '/_authenticated/admin/'
+    | '/_authenticated/admin/teachers/'
+    | '/_authenticated/admin/teachers/$teacherId/schedule'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -160,6 +230,34 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/auth/': {
+      id: '/auth/'
+      path: '/'
+      fullPath: '/auth/'
+      preLoaderRoute: typeof AuthIndexRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/auth/reset-password': {
+      id: '/auth/reset-password'
+      path: '/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/auth/register': {
+      id: '/auth/register'
+      path: '/register'
+      fullPath: '/auth/register'
+      preLoaderRoute: typeof AuthRegisterRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/_authenticated/schedule': {
       id: '/_authenticated/schedule'
@@ -203,15 +301,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminHistoryRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/admin/teachers/': {
+      id: '/_authenticated/admin/teachers/'
+      path: '/'
+      fullPath: '/admin/teachers/'
+      preLoaderRoute: typeof AuthenticatedAdminTeachersIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminTeachersRoute
+    }
+    '/_authenticated/admin/teachers/$teacherId/schedule': {
+      id: '/_authenticated/admin/teachers/$teacherId/schedule'
+      path: '/$teacherId/schedule'
+      fullPath: '/admin/teachers/$teacherId/schedule'
+      preLoaderRoute: typeof AuthenticatedAdminTeachersTeacherIdScheduleRouteImport
+      parentRoute: typeof AuthenticatedAdminTeachersRoute
+    }
   }
 }
+
+interface AuthenticatedAdminTeachersRouteChildren {
+  AuthenticatedAdminTeachersIndexRoute: typeof AuthenticatedAdminTeachersIndexRoute
+  AuthenticatedAdminTeachersTeacherIdScheduleRoute: typeof AuthenticatedAdminTeachersTeacherIdScheduleRoute
+}
+
+const AuthenticatedAdminTeachersRouteChildren: AuthenticatedAdminTeachersRouteChildren =
+  {
+    AuthenticatedAdminTeachersIndexRoute: AuthenticatedAdminTeachersIndexRoute,
+    AuthenticatedAdminTeachersTeacherIdScheduleRoute:
+      AuthenticatedAdminTeachersTeacherIdScheduleRoute,
+  }
+
+const AuthenticatedAdminTeachersRouteWithChildren =
+  AuthenticatedAdminTeachersRoute._addFileChildren(
+    AuthenticatedAdminTeachersRouteChildren,
+  )
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAbsenceRoute: typeof AuthenticatedAbsenceRoute
   AuthenticatedMyRequestsRoute: typeof AuthenticatedMyRequestsRoute
   AuthenticatedScheduleRoute: typeof AuthenticatedScheduleRoute
   AuthenticatedAdminHistoryRoute: typeof AuthenticatedAdminHistoryRoute
-  AuthenticatedAdminTeachersRoute: typeof AuthenticatedAdminTeachersRoute
+  AuthenticatedAdminTeachersRoute: typeof AuthenticatedAdminTeachersRouteWithChildren
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
 
@@ -220,17 +349,33 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMyRequestsRoute: AuthenticatedMyRequestsRoute,
   AuthenticatedScheduleRoute: AuthenticatedScheduleRoute,
   AuthenticatedAdminHistoryRoute: AuthenticatedAdminHistoryRoute,
-  AuthenticatedAdminTeachersRoute: AuthenticatedAdminTeachersRoute,
+  AuthenticatedAdminTeachersRoute: AuthenticatedAdminTeachersRouteWithChildren,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
   AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
+interface AuthRouteChildren {
+  AuthCallbackRoute: typeof AuthCallbackRoute
+  AuthRegisterRoute: typeof AuthRegisterRoute
+  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
+  AuthIndexRoute: typeof AuthIndexRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthCallbackRoute: AuthCallbackRoute,
+  AuthRegisterRoute: AuthRegisterRoute,
+  AuthResetPasswordRoute: AuthResetPasswordRoute,
+  AuthIndexRoute: AuthIndexRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

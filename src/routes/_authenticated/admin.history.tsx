@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { requireAdmin } from "@/lib/auth-guards";
 
 export const Route = createFileRoute("/_authenticated/admin/history")({
+  beforeLoad: () => requireAdmin(),
   component: AdminHistory,
 });
 

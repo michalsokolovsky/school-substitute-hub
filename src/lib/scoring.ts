@@ -32,8 +32,8 @@ export interface Criterion {
   score: (candidate: CandidateSlot, missed: MissedLesson) => number; // 0..1
 }
 
-const isMathOrEnglish = (subject: string | null) =>
-  !!subject && ["אנגלית", "מתמטיקה", "english", "math"].includes(subject.trim().toLowerCase());
+const needsAbilityGroup = (subject: string | null) =>
+  !!subject && ["אנגלית", "english", "חשבון", "accounting"].includes(subject.trim().toLowerCase());
 
 export const CRITERIA: Criterion[] = [
   {
@@ -46,7 +46,7 @@ export const CRITERIA: Criterion[] = [
     name: "same_ability_group",
     weight: 25,
     score: (c, m) => {
-      if (!isMathOrEnglish(m.subject)) return 0;
+      if (!needsAbilityGroup(m.subject)) return 0;
       return m.ability_group && c.ability_group && c.ability_group === m.ability_group ? 1 : 0;
     },
   },

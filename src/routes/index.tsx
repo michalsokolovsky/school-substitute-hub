@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { getPostAuthPath } from "@/lib/auth-routing";
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -17,25 +18,12 @@ function Index() {
         router.navigate({ to: "/auth", replace: true });
         return;
       }
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userRes.user.id);
-      const isAdmin = roles?.some((r) => r.role === "admin");
-      if (isAdmin) {
-        router.navigate({ to: "/admin", replace: true });
-      } else {
-        const { data: teacher } = await supabase
-          .from("teachers")
-          .select("schedule_locked")
-          .eq("user_id", userRes.user.id)
-          .maybeSingle();
-        if (teacher && !teacher.schedule_locked) {
-          router.navigate({ to: "/schedule", replace: true });
-        } else {
-          router.navigate({ to: "/absence", replace: true });
-        }
+      const path = await getPostAuthPath(userRes.user.id);
+      if (path) {
+        router.navigate({ to: path, replace: true });
+        return;
       }
+      router.navigate({ to: "/auth/register", replace: true });
     })();
   }, [router]);
   return (
