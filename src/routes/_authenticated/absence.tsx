@@ -180,6 +180,12 @@ function AbsencePage() {
     setStep("match");
   }
 
+  // The request is created in several separate inserts. If a later one fails, remove the partial
+  // request so it doesn't linger as an orphan; deleting it cascades to its lessons and assignments.
+  async function rollbackRequest(requestId: string) {
+    await supabase.from("absence_requests").delete().eq("id", requestId);
+  }
+
   async function submitRequest() {
     if (!teacherId) return;
     const lessons = [...selectedLessons].sort((a, b) => a - b);
@@ -219,6 +225,7 @@ function AbsencePage() {
       .insert(lessonRows)
       .select();
     if (lessErr || !insertedLessons) {
+      await rollbackRequest(req.id);
       setMessage("שגיאה: " + (lessErr?.message ?? ""));
       setSending(false);
       return;
@@ -232,7 +239,14 @@ function AbsencePage() {
     }));
     const { error: assErr } = await supabase.from("substitute_assignments").insert(assignRows);
     if (assErr) {
-      setMessage("שגיאה בשריון ממלאות המקום: " + assErr.message);
+      await rollbackRequest(req.id);
+      if (assErr.code === "23505") {
+        // Another request booked one of the chosen substitutes in the meantime.
+        await findCandidates();
+        setMessage("אחת הממלאות שבחרת נתפסה בינתיים על ידי בקשה אחרת. הרשימה רועננה, בחרי מחדש.");
+      } else {
+        setMessage("שגיאה בשריון ממלאות המקום: " + assErr.message);
+      }
       setSending(false);
       return;
     }
