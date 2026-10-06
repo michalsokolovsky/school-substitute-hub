@@ -3,7 +3,14 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
-import { importTeachers, grantAdmin, clearTeacherAuthAccounts } from "@/lib/admin.functions";
+import {
+  importTeachers,
+  grantAdmin,
+  clearTeacherAuthAccounts,
+  listAdmins,
+  revokeAdmin,
+  deleteTeacher,
+} from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/teachers/")({
   component: AdminTeachers,
@@ -16,7 +23,10 @@ type Teacher = {
   phone: string | null;
   type: "regular" | "external";
   schedule_locked: boolean;
+  user_id: string | null;
 };
+
+type AdminRow = { user_id: string; email: string; full_name: string | null; is_me: boolean };
 
 function cleanKey(key: string) {
   return key.trim().replace(/[\u200f\u200e]/g, "");
@@ -65,15 +75,76 @@ function AdminTeachers() {
   const importFn = useServerFn(importTeachers);
   const grantFn = useServerFn(grantAdmin);
   const clearFn = useServerFn(clearTeacherAuthAccounts);
+  const listAdminsFn = useServerFn(listAdmins);
+  const revokeFn = useServerFn(revokeAdmin);
+  const deleteFn = useServerFn(deleteTeacher);
+  const [admins, setAdmins] = useState<AdminRow[]>([]);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   async function load() {
     const { data } = await supabase.from("teachers").select("*").order("full_name");
     setTeachers((data as Teacher[]) ?? []);
   }
 
+  async function loadAdmins() {
+    try {
+      const res = await listAdminsFn();
+      setAdmins(res.admins);
+    } catch {
+      setAdmins([]);
+    }
+  }
+
   useEffect(() => {
     load();
+    loadAdmins();
   }, []);
+
+  const adminUserIds = new Set(admins.map((a) => a.user_id));
+
+  async function onMakeAdmin(t: Teacher) {
+    if (!confirm(`להפוך את ${t.full_name} למנהלת? תהיה לה גישה מלאה לניהול המערכת.`)) return;
+    setActionMessage(null);
+    try {
+      await grantFn({ data: { email: t.email } });
+      setActionMessage(`${t.full_name} קיבלה הרשאות מנהלת.`);
+      loadAdmins();
+    } catch (err) {
+      setActionMessage("שגיאה: " + (err instanceof Error ? err.message : String(err)));
+    }
+  }
+
+  async function onRevokeAdmin(userId: string, label: string) {
+    if (!confirm(`להסיר את הרשאת המנהלת מ-${label}?`)) return;
+    setActionMessage(null);
+    try {
+      await revokeFn({ data: { userId } });
+      setActionMessage(`הרשאת המנהלת של ${label} הוסרה.`);
+      loadAdmins();
+    } catch (err) {
+      setActionMessage("שגיאה: " + (err instanceof Error ? err.message : String(err)));
+    }
+  }
+
+  async function onDeleteTeacher(t: Teacher) {
+    const extra = t.user_id ? " גם חשבון ההתחברות שלה יימחק והיא לא תוכל להתחבר." : "";
+    if (
+      !confirm(
+        `למחוק את ${t.full_name}?${extra}\nהמערכת השבועית שלה, בקשות ההיעדרות שלה ושיבוצי ממלאת המקום שלה יימחקו. אי אפשר לבטל.`,
+      )
+    ) {
+      return;
+    }
+    setActionMessage(null);
+    try {
+      await deleteFn({ data: { teacherId: t.id } });
+      setActionMessage(`${t.full_name} נמחקה.`);
+      load();
+    } catch (err) {
+      setActionMessage("שגיאה: " + (err instanceof Error ? err.message : String(err)));
+      load();
+    }
+  }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -135,6 +206,7 @@ function AdminTeachers() {
       await grantFn({ data: { email: grantEmail.trim() } });
       setGrantMessage(`המשתמש ${grantEmail} קיבל הרשאות מנהלת.`);
       setGrantEmail("");
+      loadAdmins();
     } catch (err) {
       setGrantMessage("שגיאה: " + (err instanceof Error ? err.message : String(err)));
     }
@@ -241,7 +313,35 @@ function AdminTeachers() {
           </button>
         </form>
         {grantMessage && <p className="mt-2 text-sm">{grantMessage}</p>}
+
+        {admins.length > 0 && (
+          <div className="mt-4 border-t pt-3">
+            <h3 className="text-sm font-semibold">מנהלות במערכת</h3>
+            <ul className="mt-2 divide-y text-sm">
+              {admins.map((a) => (
+                <li key={a.user_id} className="flex items-center justify-between gap-2 py-1.5">
+                  <span>
+                    {a.full_name ? `${a.full_name} · ` : ""}
+                    {a.email}
+                    {a.is_me && <span className="text-muted-foreground"> (את)</span>}
+                  </span>
+                  {!a.is_me && (
+                    <button
+                      type="button"
+                      onClick={() => onRevokeAdmin(a.user_id, a.full_name ?? a.email)}
+                      className="rounded border border-destructive px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                    >
+                      הסרת הרשאה
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
+
+      {actionMessage && <div className="rounded-md bg-accent px-3 py-2 text-sm">{actionMessage}</div>}
 
       <div className="rounded-lg border bg-card">
         <table className="w-full text-sm">
@@ -251,6 +351,7 @@ function AdminTeachers() {
               <th className="p-2">אימייל</th>
               <th className="p-2">טלפון</th>
               <th className="p-2">סוג</th>
+              <th className="p-2">הרשאה</th>
               <th className="p-2">מערכת</th>
               <th className="p-2"></th>
             </tr>
@@ -262,6 +363,13 @@ function AdminTeachers() {
                 <td className="p-2">{t.email}</td>
                 <td className="p-2">{t.phone ?? "—"}</td>
                 <td className="p-2">{t.type === "external" ? "חיצונית" : "פנימית"}</td>
+                <td className="p-2">
+                  {t.user_id && adminUserIds.has(t.user_id)
+                    ? "מנהלת"
+                    : t.user_id
+                      ? "מורה"
+                      : "אין חשבון"}
+                </td>
                 <td className="p-2">{t.schedule_locked ? "נעולה" : "פתוחה"}</td>
                 <td className="p-2 text-left">
                   <div className="flex flex-wrap justify-end gap-1">
@@ -281,13 +389,38 @@ function AdminTeachers() {
                         פתיחה למורה
                       </button>
                     )}
+                    {t.user_id && !adminUserIds.has(t.user_id) && (
+                      <button
+                        type="button"
+                        onClick={() => onMakeAdmin(t)}
+                        className="rounded border px-2 py-1 text-xs hover:bg-secondary"
+                      >
+                        הפיכה למנהלת
+                      </button>
+                    )}
+                    {t.user_id && adminUserIds.has(t.user_id) && (
+                      <button
+                        type="button"
+                        onClick={() => onRevokeAdmin(t.user_id!, t.full_name)}
+                        className="rounded border px-2 py-1 text-xs hover:bg-secondary"
+                      >
+                        הסרת מנהלת
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onDeleteTeacher(t)}
+                      className="rounded border border-destructive px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                    >
+                      מחיקה
+                    </button>
                   </div>
                 </td>
               </tr>
             ))}
             {teachers.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                <td colSpan={7} className="p-4 text-center text-muted-foreground">
                   אין מורות. ייבאי מאקסל.
                 </td>
               </tr>
