@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import * as XLSX from "xlsx";
-import { Upload } from "lucide-react";
+import { ChevronDown, ShieldCheck, TriangleAlert, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   importTeachers,
@@ -215,13 +215,10 @@ function AdminTeachers() {
   }
 
   async function onClearTeacherAccounts() {
-    if (
-      !confirm(
-        "למחוק את כל חשבונות ההתחברות של המורות? המורות יצטרכו להירשם מחדש ב-/auth/register",
-      )
-    ) {
-      return;
-    }
+    const typed = prompt(
+      "פעולה זו מוחקת את כל חשבונות ההתחברות של המורות, והן יצטרכו להירשם מחדש.\nכדי להמשיך, הקלידי: איפוס",
+    );
+    if (typed?.trim() !== "איפוס") return;
     setClearing(true);
     setGrantMessage(null);
     try {
@@ -279,11 +276,13 @@ function AdminTeachers() {
         </div>
       )}
 
-      <details className="rounded-lg border bg-card p-3 text-sm">
-        <summary className="cursor-pointer select-none font-medium">
+      <details className="group rounded-lg border bg-card text-sm">
+        <summary className="flex cursor-pointer select-none list-none items-center gap-2 p-3 font-medium [&::-webkit-details-marker]:hidden">
+          <ShieldCheck className="h-4 w-4 text-muted-foreground" />
           מנהלות{admins.length > 0 ? ` (${admins.length})` : ""}
+          <ChevronDown className="mr-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
         </summary>
-        <div className="mt-3 space-y-3">
+        <div className="space-y-3 border-t p-3">
           <form onSubmit={onGrantAdmin} className="flex flex-wrap items-center gap-2">
             <input
               type="email"
@@ -416,21 +415,30 @@ function AdminTeachers() {
         </table>
       </div>
 
-      <details className="rounded-lg border bg-card p-3 text-sm">
-        <summary className="cursor-pointer select-none text-muted-foreground">פעולות מתקדמות</summary>
-        <div className="mt-3">
-          <p className="text-muted-foreground">
-            מחיקת כל חשבונות ההתחברות של המורות. המורות יישארו ברשימה ויוכלו להירשם מחדש עם סיסמה
-            משלהן.
-          </p>
-          <button
-            type="button"
-            onClick={onClearTeacherAccounts}
-            disabled={clearing}
-            className="mt-2 rounded-md border border-destructive px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-60"
-          >
-            {clearing ? "מוחק..." : "מחיקת חשבונות מורות (הרשמה מחדש)"}
-          </button>
+      <details className="group rounded-lg border border-destructive/30 bg-card text-sm">
+        <summary className="flex cursor-pointer select-none list-none items-center gap-2 p-3 font-medium [&::-webkit-details-marker]:hidden">
+          <TriangleAlert className="h-4 w-4 text-destructive" />
+          פעולות מתקדמות
+          <ChevronDown className="mr-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="border-t border-destructive/30 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-[240px] flex-1">
+              <div className="font-medium">איפוס חשבונות התחברות של המורות</div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                מוחק את כל חשבונות ההתחברות של המורות. הן נשארות ברשימה, ויכולות להירשם מחדש עם
+                סיסמה משלהן. חשבונות מנהלות לא נמחקים.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClearTeacherAccounts}
+              disabled={clearing}
+              className="shrink-0 rounded-md border border-destructive px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-60"
+            >
+              {clearing ? "מאפס..." : "איפוס חשבונות"}
+            </button>
+          </div>
         </div>
       </details>
     </div>
