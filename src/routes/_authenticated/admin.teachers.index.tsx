@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import * as XLSX from "xlsx";
+import { Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   importTeachers,
@@ -235,23 +236,17 @@ function AdminTeachers() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">ניהול מורות</h1>
-        <p className="text-sm text-muted-foreground">ייבוא מקובץ אקסל, עריכת מערכות וניהול הרשאות</p>
-      </div>
-
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="font-semibold">ייבוא מאקסל</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          קובץ עם עמודות: שם (או שם מלא), אימייל, טלפון, סוג. לא נוצרות סיסמאות — כל מורה נרשמת
-          בעצמה ב-
-          <Link to="/auth/register" className="text-primary hover:underline">
-            /auth/register
-          </Link>
-          .
-        </p>
-        <label className="mt-3 inline-flex cursor-pointer items-center rounded-md border border-primary bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10">
-          {importing ? "מייבא..." : "בחירת קובץ אקסל"}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">ניהול מורות</h1>
+          <p className="text-sm text-muted-foreground">עריכת מערכות וניהול הרשאות</p>
+        </div>
+        <label
+          title="קובץ אקסל עם העמודות: שם מלא, אימייל, טלפון, סוג. לא נוצרות סיסמאות, כל מורה נרשמת בעצמה בדף ההרשמה."
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-secondary"
+        >
+          <Upload className="h-3.5 w-3.5" />
+          {importing ? "מייבא..." : "ייבוא מאקסל"}
           <input
             type="file"
             accept=".xlsx,.xls,.csv"
@@ -260,33 +255,29 @@ function AdminTeachers() {
             className="sr-only"
           />
         </label>
-        {importing && <p className="mt-2 text-sm text-muted-foreground">מייבא...</p>}
-        {importResult && (
-          <div className="mt-3 max-h-64 overflow-y-auto rounded border bg-background p-2 text-sm">
+      </div>
+
+      {importResult && (
+        <div className="rounded-lg border bg-card p-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">תוצאות הייבוא</h2>
+            <button
+              type="button"
+              onClick={() => setImportResult(null)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              סגירה
+            </button>
+          </div>
+          <div className="mt-2 max-h-48 overflow-y-auto text-sm">
             {importResult.map((r) => (
               <div key={r.email} className={r.ok ? "text-foreground" : "text-destructive"}>
                 {r.email} — {r.ok ? "נוספה לרשימה" : `שגיאה: ${r.error}`}
               </div>
             ))}
           </div>
-        )}
-      </div>
-
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="font-semibold">הרשמה עצמית למורות</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          מחקי חשבונות התחברות קיימים של מורות. המורות יישארו ברשימה ויוכלו להירשם מחדש עם סיסמה
-          משלהן.
-        </p>
-        <button
-          type="button"
-          onClick={onClearTeacherAccounts}
-          disabled={clearing}
-          className="mt-3 rounded-md border border-destructive px-4 py-2 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-60"
-        >
-          {clearing ? "מוחק..." : "מחיקת חשבונות מורות (הרשמה מחדש)"}
-        </button>
-      </div>
+        </div>
+      )}
 
       <div className="rounded-lg border bg-card p-4">
         <h2 className="font-semibold">הוספת מנהלת</h2>
@@ -428,6 +419,24 @@ function AdminTeachers() {
           </tbody>
         </table>
       </div>
+
+      <details className="rounded-lg border bg-card p-3 text-sm">
+        <summary className="cursor-pointer select-none text-muted-foreground">פעולות מתקדמות</summary>
+        <div className="mt-3">
+          <p className="text-muted-foreground">
+            מחיקת כל חשבונות ההתחברות של המורות. המורות יישארו ברשימה ויוכלו להירשם מחדש עם סיסמה
+            משלהן.
+          </p>
+          <button
+            type="button"
+            onClick={onClearTeacherAccounts}
+            disabled={clearing}
+            className="mt-2 rounded-md border border-destructive px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-60"
+          >
+            {clearing ? "מוחק..." : "מחיקת חשבונות מורות (הרשמה מחדש)"}
+          </button>
+        </div>
+      </details>
     </div>
   );
 }
