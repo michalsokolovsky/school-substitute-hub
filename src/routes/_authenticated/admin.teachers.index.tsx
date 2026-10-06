@@ -279,36 +279,32 @@ function AdminTeachers() {
         </div>
       )}
 
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="font-semibold">הוספת מנהלת</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          הזיני אימייל של משתמש קיים במערכת כדי להעניק לו הרשאות מנהלת.
-        </p>
-        <form onSubmit={onGrantAdmin} className="mt-3 flex flex-wrap items-end gap-2">
-          <div className="min-w-[240px] flex-1">
-            <label className="mb-1 block text-sm font-medium">אימייל</label>
+      <details className="rounded-lg border bg-card p-3 text-sm">
+        <summary className="cursor-pointer select-none font-medium">
+          מנהלות{admins.length > 0 ? ` (${admins.length})` : ""}
+        </summary>
+        <div className="mt-3 space-y-3">
+          <form onSubmit={onGrantAdmin} className="flex flex-wrap items-center gap-2">
             <input
               type="email"
               required
+              placeholder="אימייל של משתמשת קיימת"
               value={grantEmail}
               onChange={(e) => setGrantEmail(e.target.value)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              className="min-w-[220px] flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs"
             />
-          </div>
-          <button
-            type="submit"
-            disabled={granting}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-          >
-            {granting ? "מעדכן..." : "הענקת הרשאות"}
-          </button>
-        </form>
-        {grantMessage && <p className="mt-2 text-sm">{grantMessage}</p>}
+            <button
+              type="submit"
+              disabled={granting}
+              className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-secondary disabled:opacity-60"
+            >
+              {granting ? "מעדכן..." : "הענקת הרשאת מנהלת"}
+            </button>
+          </form>
+          {grantMessage && <p className="text-xs">{grantMessage}</p>}
 
-        {admins.length > 0 && (
-          <div className="mt-4 border-t pt-3">
-            <h3 className="text-sm font-semibold">מנהלות במערכת</h3>
-            <ul className="mt-2 divide-y text-sm">
+          {admins.length > 0 && (
+            <ul className="divide-y text-xs">
               {admins.map((a) => (
                 <li key={a.user_id} className="flex items-center justify-between gap-2 py-1.5">
                   <span>
@@ -320,7 +316,7 @@ function AdminTeachers() {
                     <button
                       type="button"
                       onClick={() => onRevokeAdmin(a.user_id, a.full_name ?? a.email)}
-                      className="rounded border border-destructive px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                      className="rounded border border-destructive px-2 py-0.5 text-destructive hover:bg-destructive/10"
                     >
                       הסרת הרשאה
                     </button>
@@ -328,9 +324,9 @@ function AdminTeachers() {
                 </li>
               ))}
             </ul>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </details>
 
       {actionMessage && <div className="rounded-md bg-accent px-3 py-2 text-sm">{actionMessage}</div>}
 
