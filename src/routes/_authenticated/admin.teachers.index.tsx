@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import * as XLSX from "xlsx";
-import { Upload } from "lucide-react";
+import { ChevronDown, ShieldCheck, TriangleAlert, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   importTeachers,
@@ -215,13 +215,10 @@ function AdminTeachers() {
   }
 
   async function onClearTeacherAccounts() {
-    if (
-      !confirm(
-        "למחוק את כל חשבונות ההתחברות של המורות? המורות יצטרכו להירשם מחדש ב-/auth/register",
-      )
-    ) {
-      return;
-    }
+    const typed = prompt(
+      "פעולה זו מוחקת את כל חשבונות ההתחברות של המורות, והן יצטרכו להירשם מחדש.\nכדי להמשיך, הקלידי: איפוס",
+    );
+    if (typed?.trim() !== "איפוס") return;
     setClearing(true);
     setGrantMessage(null);
     try {
@@ -279,36 +276,34 @@ function AdminTeachers() {
         </div>
       )}
 
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="font-semibold">הוספת מנהלת</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          הזיני אימייל של משתמש קיים במערכת כדי להעניק לו הרשאות מנהלת.
-        </p>
-        <form onSubmit={onGrantAdmin} className="mt-3 flex flex-wrap items-end gap-2">
-          <div className="min-w-[240px] flex-1">
-            <label className="mb-1 block text-sm font-medium">אימייל</label>
+      <details className="group rounded-lg border bg-card text-sm">
+        <summary className="flex cursor-pointer select-none list-none items-center gap-2 p-3 font-medium [&::-webkit-details-marker]:hidden">
+          <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+          מנהלות{admins.length > 0 ? ` (${admins.length})` : ""}
+          <ChevronDown className="mr-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-3 border-t p-3">
+          <form onSubmit={onGrantAdmin} className="flex flex-wrap items-center gap-2">
             <input
               type="email"
               required
+              placeholder="אימייל של משתמשת קיימת"
               value={grantEmail}
               onChange={(e) => setGrantEmail(e.target.value)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              className="min-w-[220px] flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs"
             />
-          </div>
-          <button
-            type="submit"
-            disabled={granting}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-          >
-            {granting ? "מעדכן..." : "הענקת הרשאות"}
-          </button>
-        </form>
-        {grantMessage && <p className="mt-2 text-sm">{grantMessage}</p>}
+            <button
+              type="submit"
+              disabled={granting}
+              className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-secondary disabled:opacity-60"
+            >
+              {granting ? "מעדכן..." : "הענקת הרשאת מנהלת"}
+            </button>
+          </form>
+          {grantMessage && <p className="text-xs">{grantMessage}</p>}
 
-        {admins.length > 0 && (
-          <div className="mt-4 border-t pt-3">
-            <h3 className="text-sm font-semibold">מנהלות במערכת</h3>
-            <ul className="mt-2 divide-y text-sm">
+          {admins.length > 0 && (
+            <ul className="divide-y text-xs">
               {admins.map((a) => (
                 <li key={a.user_id} className="flex items-center justify-between gap-2 py-1.5">
                   <span>
@@ -320,7 +315,7 @@ function AdminTeachers() {
                     <button
                       type="button"
                       onClick={() => onRevokeAdmin(a.user_id, a.full_name ?? a.email)}
-                      className="rounded border border-destructive px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                      className="rounded border border-destructive px-2 py-0.5 text-destructive hover:bg-destructive/10"
                     >
                       הסרת הרשאה
                     </button>
@@ -328,9 +323,9 @@ function AdminTeachers() {
                 </li>
               ))}
             </ul>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </details>
 
       {actionMessage && <div className="rounded-md bg-accent px-3 py-2 text-sm">{actionMessage}</div>}
 
@@ -420,21 +415,30 @@ function AdminTeachers() {
         </table>
       </div>
 
-      <details className="rounded-lg border bg-card p-3 text-sm">
-        <summary className="cursor-pointer select-none text-muted-foreground">פעולות מתקדמות</summary>
-        <div className="mt-3">
-          <p className="text-muted-foreground">
-            מחיקת כל חשבונות ההתחברות של המורות. המורות יישארו ברשימה ויוכלו להירשם מחדש עם סיסמה
-            משלהן.
-          </p>
-          <button
-            type="button"
-            onClick={onClearTeacherAccounts}
-            disabled={clearing}
-            className="mt-2 rounded-md border border-destructive px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-60"
-          >
-            {clearing ? "מוחק..." : "מחיקת חשבונות מורות (הרשמה מחדש)"}
-          </button>
+      <details className="group rounded-lg border border-destructive/30 bg-card text-sm">
+        <summary className="flex cursor-pointer select-none list-none items-center gap-2 p-3 font-medium [&::-webkit-details-marker]:hidden">
+          <TriangleAlert className="h-4 w-4 text-destructive" />
+          פעולות מתקדמות
+          <ChevronDown className="mr-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="border-t border-destructive/30 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-[240px] flex-1">
+              <div className="font-medium">איפוס חשבונות התחברות של המורות</div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                מוחק את כל חשבונות ההתחברות של המורות. הן נשארות ברשימה, ויכולות להירשם מחדש עם
+                סיסמה משלהן. חשבונות מנהלות לא נמחקים.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClearTeacherAccounts}
+              disabled={clearing}
+              className="shrink-0 rounded-md border border-destructive px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-60"
+            >
+              {clearing ? "מאפס..." : "איפוס חשבונות"}
+            </button>
+          </div>
         </div>
       </details>
     </div>
