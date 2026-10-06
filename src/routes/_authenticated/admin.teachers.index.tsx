@@ -2,8 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import * as XLSX from "xlsx";
+import { Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { importTeachers, grantAdmin, clearTeacherAuthAccounts } from "@/lib/admin.functions";
+import {
+  importTeachers,
+  grantAdmin,
+  clearTeacherAuthAccounts,
+  listAdmins,
+  revokeAdmin,
+  deleteTeacher,
+} from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/teachers/")({
   component: AdminTeachers,
@@ -16,7 +24,10 @@ type Teacher = {
   phone: string | null;
   type: "regular" | "external";
   schedule_locked: boolean;
+  user_id: string | null;
 };
+
+type AdminRow = { user_id: string; email: string; full_name: string | null; is_me: boolean };
 
 function cleanKey(key: string) {
   return key.trim().replace(/[\u200f\u200e]/g, "");
@@ -65,15 +76,76 @@ function AdminTeachers() {
   const importFn = useServerFn(importTeachers);
   const grantFn = useServerFn(grantAdmin);
   const clearFn = useServerFn(clearTeacherAuthAccounts);
+  const listAdminsFn = useServerFn(listAdmins);
+  const revokeFn = useServerFn(revokeAdmin);
+  const deleteFn = useServerFn(deleteTeacher);
+  const [admins, setAdmins] = useState<AdminRow[]>([]);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   async function load() {
     const { data } = await supabase.from("teachers").select("*").order("full_name");
     setTeachers((data as Teacher[]) ?? []);
   }
 
+  async function loadAdmins() {
+    try {
+      const res = await listAdminsFn();
+      setAdmins(res.admins);
+    } catch {
+      setAdmins([]);
+    }
+  }
+
   useEffect(() => {
     load();
+    loadAdmins();
   }, []);
+
+  const adminUserIds = new Set(admins.map((a) => a.user_id));
+
+  async function onMakeAdmin(t: Teacher) {
+    if (!confirm(`להפוך את ${t.full_name} למנהלת? תהיה לה גישה מלאה לניהול המערכת.`)) return;
+    setActionMessage(null);
+    try {
+      await grantFn({ data: { email: t.email } });
+      setActionMessage(`${t.full_name} קיבלה הרשאות מנהלת.`);
+      loadAdmins();
+    } catch (err) {
+      setActionMessage("שגיאה: " + (err instanceof Error ? err.message : String(err)));
+    }
+  }
+
+  async function onRevokeAdmin(userId: string, label: string) {
+    if (!confirm(`להסיר את הרשאת המנהלת מ-${label}?`)) return;
+    setActionMessage(null);
+    try {
+      await revokeFn({ data: { userId } });
+      setActionMessage(`הרשאת המנהלת של ${label} הוסרה.`);
+      loadAdmins();
+    } catch (err) {
+      setActionMessage("שגיאה: " + (err instanceof Error ? err.message : String(err)));
+    }
+  }
+
+  async function onDeleteTeacher(t: Teacher) {
+    const extra = t.user_id ? " גם חשבון ההתחברות שלה יימחק והיא לא תוכל להתחבר." : "";
+    if (
+      !confirm(
+        `למחוק את ${t.full_name}?${extra}\nהמערכת השבועית שלה, בקשות ההיעדרות שלה ושיבוצי ממלאת המקום שלה יימחקו. אי אפשר לבטל.`,
+      )
+    ) {
+      return;
+    }
+    setActionMessage(null);
+    try {
+      await deleteFn({ data: { teacherId: t.id } });
+      setActionMessage(`${t.full_name} נמחקה.`);
+      load();
+    } catch (err) {
+      setActionMessage("שגיאה: " + (err instanceof Error ? err.message : String(err)));
+      load();
+    }
+  }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -135,6 +207,7 @@ function AdminTeachers() {
       await grantFn({ data: { email: grantEmail.trim() } });
       setGrantMessage(`המשתמש ${grantEmail} קיבל הרשאות מנהלת.`);
       setGrantEmail("");
+      loadAdmins();
     } catch (err) {
       setGrantMessage("שגיאה: " + (err instanceof Error ? err.message : String(err)));
     }
@@ -163,23 +236,17 @@ function AdminTeachers() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">ניהול מורות</h1>
-        <p className="text-sm text-muted-foreground">ייבוא מקובץ אקסל, עריכת מערכות וניהול הרשאות</p>
-      </div>
-
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="font-semibold">ייבוא מאקסל</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          קובץ עם עמודות: שם (או שם מלא), אימייל, טלפון, סוג. לא נוצרות סיסמאות — כל מורה נרשמת
-          בעצמה ב-
-          <Link to="/auth/register" className="text-primary hover:underline">
-            /auth/register
-          </Link>
-          .
-        </p>
-        <label className="mt-3 inline-flex cursor-pointer items-center rounded-md border border-primary bg-primary/5 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10">
-          {importing ? "מייבא..." : "בחירת קובץ אקסל"}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">ניהול מורות</h1>
+          <p className="text-sm text-muted-foreground">עריכת מערכות וניהול הרשאות</p>
+        </div>
+        <label
+          title="קובץ אקסל עם העמודות: שם מלא, אימייל, טלפון, סוג. לא נוצרות סיסמאות, כל מורה נרשמת בעצמה בדף ההרשמה."
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-secondary"
+        >
+          <Upload className="h-3.5 w-3.5" />
+          {importing ? "מייבא..." : "ייבוא מאקסל"}
           <input
             type="file"
             accept=".xlsx,.xls,.csv"
@@ -188,33 +255,29 @@ function AdminTeachers() {
             className="sr-only"
           />
         </label>
-        {importing && <p className="mt-2 text-sm text-muted-foreground">מייבא...</p>}
-        {importResult && (
-          <div className="mt-3 max-h-64 overflow-y-auto rounded border bg-background p-2 text-sm">
+      </div>
+
+      {importResult && (
+        <div className="rounded-lg border bg-card p-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">תוצאות הייבוא</h2>
+            <button
+              type="button"
+              onClick={() => setImportResult(null)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              סגירה
+            </button>
+          </div>
+          <div className="mt-2 max-h-48 overflow-y-auto text-sm">
             {importResult.map((r) => (
               <div key={r.email} className={r.ok ? "text-foreground" : "text-destructive"}>
                 {r.email} — {r.ok ? "נוספה לרשימה" : `שגיאה: ${r.error}`}
               </div>
             ))}
           </div>
-        )}
-      </div>
-
-      <div className="rounded-lg border bg-card p-4">
-        <h2 className="font-semibold">הרשמה עצמית למורות</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          מחקי חשבונות התחברות קיימים של מורות. המורות יישארו ברשימה ויוכלו להירשם מחדש עם סיסמה
-          משלהן.
-        </p>
-        <button
-          type="button"
-          onClick={onClearTeacherAccounts}
-          disabled={clearing}
-          className="mt-3 rounded-md border border-destructive px-4 py-2 text-sm text-destructive hover:bg-destructive/10 disabled:opacity-60"
-        >
-          {clearing ? "מוחק..." : "מחיקת חשבונות מורות (הרשמה מחדש)"}
-        </button>
-      </div>
+        </div>
+      )}
 
       <div className="rounded-lg border bg-card p-4">
         <h2 className="font-semibold">הוספת מנהלת</h2>
@@ -241,7 +304,35 @@ function AdminTeachers() {
           </button>
         </form>
         {grantMessage && <p className="mt-2 text-sm">{grantMessage}</p>}
+
+        {admins.length > 0 && (
+          <div className="mt-4 border-t pt-3">
+            <h3 className="text-sm font-semibold">מנהלות במערכת</h3>
+            <ul className="mt-2 divide-y text-sm">
+              {admins.map((a) => (
+                <li key={a.user_id} className="flex items-center justify-between gap-2 py-1.5">
+                  <span>
+                    {a.full_name ? `${a.full_name} · ` : ""}
+                    {a.email}
+                    {a.is_me && <span className="text-muted-foreground"> (את)</span>}
+                  </span>
+                  {!a.is_me && (
+                    <button
+                      type="button"
+                      onClick={() => onRevokeAdmin(a.user_id, a.full_name ?? a.email)}
+                      className="rounded border border-destructive px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                    >
+                      הסרת הרשאה
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
+
+      {actionMessage && <div className="rounded-md bg-accent px-3 py-2 text-sm">{actionMessage}</div>}
 
       <div className="rounded-lg border bg-card">
         <table className="w-full text-sm">
@@ -251,6 +342,7 @@ function AdminTeachers() {
               <th className="p-2">אימייל</th>
               <th className="p-2">טלפון</th>
               <th className="p-2">סוג</th>
+              <th className="p-2">הרשאה</th>
               <th className="p-2">מערכת</th>
               <th className="p-2"></th>
             </tr>
@@ -262,6 +354,13 @@ function AdminTeachers() {
                 <td className="p-2">{t.email}</td>
                 <td className="p-2">{t.phone ?? "—"}</td>
                 <td className="p-2">{t.type === "external" ? "חיצונית" : "פנימית"}</td>
+                <td className="p-2">
+                  {t.user_id && adminUserIds.has(t.user_id)
+                    ? "מנהלת"
+                    : t.user_id
+                      ? "מורה"
+                      : "אין חשבון"}
+                </td>
                 <td className="p-2">{t.schedule_locked ? "נעולה" : "פתוחה"}</td>
                 <td className="p-2 text-left">
                   <div className="flex flex-wrap justify-end gap-1">
@@ -281,13 +380,38 @@ function AdminTeachers() {
                         פתיחה למורה
                       </button>
                     )}
+                    {t.user_id && !adminUserIds.has(t.user_id) && (
+                      <button
+                        type="button"
+                        onClick={() => onMakeAdmin(t)}
+                        className="rounded border px-2 py-1 text-xs hover:bg-secondary"
+                      >
+                        הפיכה למנהלת
+                      </button>
+                    )}
+                    {t.user_id && adminUserIds.has(t.user_id) && (
+                      <button
+                        type="button"
+                        onClick={() => onRevokeAdmin(t.user_id!, t.full_name)}
+                        className="rounded border px-2 py-1 text-xs hover:bg-secondary"
+                      >
+                        הסרת מנהלת
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onDeleteTeacher(t)}
+                      className="rounded border border-destructive px-2 py-1 text-xs text-destructive hover:bg-destructive/10"
+                    >
+                      מחיקה
+                    </button>
                   </div>
                 </td>
               </tr>
             ))}
             {teachers.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                <td colSpan={7} className="p-4 text-center text-muted-foreground">
                   אין מורות. ייבאי מאקסל.
                 </td>
               </tr>
@@ -295,6 +419,24 @@ function AdminTeachers() {
           </tbody>
         </table>
       </div>
+
+      <details className="rounded-lg border bg-card p-3 text-sm">
+        <summary className="cursor-pointer select-none text-muted-foreground">פעולות מתקדמות</summary>
+        <div className="mt-3">
+          <p className="text-muted-foreground">
+            מחיקת כל חשבונות ההתחברות של המורות. המורות יישארו ברשימה ויוכלו להירשם מחדש עם סיסמה
+            משלהן.
+          </p>
+          <button
+            type="button"
+            onClick={onClearTeacherAccounts}
+            disabled={clearing}
+            className="mt-2 rounded-md border border-destructive px-3 py-1.5 text-xs text-destructive hover:bg-destructive/10 disabled:opacity-60"
+          >
+            {clearing ? "מוחק..." : "מחיקת חשבונות מורות (הרשמה מחדש)"}
+          </button>
+        </div>
+      </details>
     </div>
   );
 }

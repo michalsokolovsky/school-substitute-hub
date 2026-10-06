@@ -16,6 +16,12 @@ async function sendEmail(input: {
     return { skipped: true };
   }
   const from = input.from ?? process.env.EMAIL_FROM ?? "מערכת ממלאות מקום <onboarding@resend.dev>";
+  // Testing aid: with EMAIL_OVERRIDE_TO set, every email goes to that address instead of the real
+  // recipient. Needed while Resend has no verified domain (it only delivers to the account owner).
+  const override = process.env.EMAIL_OVERRIDE_TO?.trim();
+  if (override) {
+    input = { ...input, to: override, subject: `[נועד ל-${input.to}] ${input.subject}` };
+  }
   const res = await fetch(`${RESEND_URL}/emails`, {
     method: "POST",
     headers: {
@@ -43,15 +49,16 @@ export const notifyAdminNewRequest = createServerFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data, context }) => {
-    // Find admin emails
-    const { data: admins } = await context.supabase
+  .handler(async ({ data }) => {
+    // Find admin emails. Must use the service-role client: RLS on user_roles only lets a
+    // teacher see her own rows, so a user-scoped query never finds the admins.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: admins } = await supabaseAdmin
       .from("user_roles")
       .select("user_id")
       .eq("role", "admin");
     if (!admins || admins.length === 0) return { skipped: true };
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const emails: string[] = [];
     for (const a of admins) {
       const { data: u } = await supabaseAdmin.auth.admin.getUserById(a.user_id);
