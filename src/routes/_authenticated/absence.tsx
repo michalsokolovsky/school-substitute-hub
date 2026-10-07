@@ -28,6 +28,8 @@ function AbsencePage() {
   const [searchType, setSearchType] = useState<"all" | "regular" | "external">("all");
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Lessons this teacher already has a pending/approved absence request for on the chosen date.
+  const [requestedLessons, setRequestedLessons] = useState<Record<number, "pending" | "approved">>({});
 
   const dayOfWeek = useMemo(() => new Date(absenceDate).getDay(), [absenceDate]); // 0=Sun..6=Sat
 
@@ -74,6 +76,30 @@ function AbsencePage() {
         setMySlots(m);
       });
   }, [teacherId, dayOfWeek]);
+
+  async function fetchRequestedLessons(tid: string, date: string) {
+    const { data } = await supabase
+      .from("absence_requests")
+      .select("status, absence_lessons(lesson_number)")
+      .eq("teacher_id", tid)
+      .eq("absence_date", date)
+      .in("status", ["pending", "approved"]);
+    const map: Record<number, "pending" | "approved"> = {};
+    data?.forEach((r) =>
+      r.absence_lessons?.forEach((l) => {
+        map[l.lesson_number] = r.status as "pending" | "approved";
+      }),
+    );
+    return map;
+  }
+
+  useEffect(() => {
+    if (!teacherId) return;
+    fetchRequestedLessons(teacherId, absenceDate).then((taken) => {
+      setRequestedLessons(taken);
+      setSelectedLessons((prev) => new Set([...prev].filter((l) => !taken[l])));
+    });
+  }, [teacherId, absenceDate]);
 
   function toggleLesson(l: number) {
     setSelectedLessons((s) => {
@@ -196,6 +222,17 @@ function AbsencePage() {
     setSending(true);
     setMessage(null);
 
+    const taken = await fetchRequestedLessons(teacherId, absenceDate);
+    const conflicts = lessons.filter((l) => taken[l]);
+    if (conflicts.length > 0) {
+      setRequestedLessons(taken);
+      setSelectedLessons(new Set(lessons.filter((l) => !taken[l])));
+      setStep("pick");
+      setMessage(`כבר הוגשה בקשה לשיעור ${conflicts.join(", ")} בתאריך הזה, אי אפשר להגיש שוב.`);
+      setSending(false);
+      return;
+    }
+
     const { data: req, error: reqErr } = await supabase
       .from("absence_requests")
       .insert({ teacher_id: teacherId, absence_date: absenceDate, status: "pending" })
@@ -309,17 +346,27 @@ function AbsencePage() {
           </div>
           <div>
             <label className="mb-2 block text-sm font-medium">שיעורים להיעדר</label>
+            {message && (
+              <div className="mb-2 rounded-md bg-destructive/10 p-2 text-sm text-destructive">{message}</div>
+            )}
             {availableLessons.length === 0 ? (
               <p className="text-sm text-muted-foreground">אין לך שיעורי הוראה ביום זה.</p>
             ) : (
               <div className="space-y-1">
                 {availableLessons.map((l) => {
                   const s = mySlots[l];
+                  const taken = requestedLessons[l];
                   return (
-                    <label key={l} className="flex items-center gap-3 rounded-md border p-2 hover:bg-secondary/50">
+                    <label
+                      key={l}
+                      className={`flex items-center gap-3 rounded-md border p-2 ${
+                        taken ? "cursor-not-allowed bg-muted/40 opacity-70" : "hover:bg-secondary/50"
+                      }`}
+                    >
                       <input
                         type="checkbox"
                         checked={selectedLessons.has(l)}
+                        disabled={!!taken}
                         onChange={() => toggleLesson(l)}
                       />
                       <span className="font-medium">שיעור {l}</span>
@@ -327,6 +374,11 @@ function AbsencePage() {
                         {s.subject} · כיתה {formatClassLabel(s.grade_level ?? "", s.class_name ?? "")}
                         {s.ability_group ? ` · הקבצה ${s.ability_group}` : ""}
                       </span>
+                      {taken && (
+                        <span className="mr-auto rounded-full bg-secondary px-2 py-0.5 text-xs">
+                          {taken === "approved" ? "כבר אושרה בקשה" : "כבר הוגשה בקשה, ממתינה לאישור"}
+                        </span>
+                      )}
                     </label>
                   );
                 })}
