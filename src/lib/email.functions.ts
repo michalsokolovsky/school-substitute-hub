@@ -4,6 +4,27 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const RESEND_URL = "https://api.resend.com";
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// Base address of the app, for links inside emails. APP_URL wins (set it in production);
+// otherwise fall back to the origin of the request that triggered the email.
+async function appBaseUrl() {
+  const fromEnv = process.env.APP_URL?.trim().replace(/\/+$/, "");
+  if (fromEnv) return fromEnv;
+  try {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    return new URL(getRequest().url).origin;
+  } catch {
+    return "";
+  }
+}
+
 async function sendEmail(input: {
   to: string;
   subject: string;
@@ -65,18 +86,24 @@ export const notifyAdminNewRequest = createServerFn({ method: "POST" })
       if (u.user?.email) emails.push(u.user.email);
     }
 
+    const link = `${await appBaseUrl()}/admin`;
     const html = `
       <div dir="rtl" style="font-family: Arial, sans-serif;">
         <h2>בקשת ממלאת מקום חדשה</h2>
-        <p><strong>מורה נעדרת:</strong> ${data.absentTeacherName}</p>
-        <p><strong>תאריך:</strong> ${data.absenceDate}</p>
+        <p><strong>מורה נעדרת:</strong> ${escapeHtml(data.absentTeacherName)}</p>
+        <p><strong>תאריך:</strong> ${escapeHtml(data.absenceDate)}</p>
         <table border="1" cellpadding="6" style="border-collapse:collapse;">
           <thead><tr><th>שיעור</th><th>ממלאת מקום</th></tr></thead>
           <tbody>
-            ${data.lessons.map((l) => `<tr><td>${l.lesson}</td><td>${l.sub}</td></tr>`).join("")}
+            ${data.lessons.map((l) => `<tr><td>${l.lesson}</td><td>${escapeHtml(l.sub)}</td></tr>`).join("")}
           </tbody>
         </table>
-        <p>יש להיכנס למערכת לאישור או דחייה.</p>
+        <p style="margin:24px 0;">
+          <a href="${link}" style="display:inline-block;background:#0e7490;color:#ffffff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">
+            לאישור או דחייה לחצי כאן
+          </a>
+        </p>
+        <p style="font-size:12px;color:#666;">אם הכפתור לא נפתח, העתיקי את הקישור הזה לדפדפן: ${link}</p>
       </div>
     `;
     for (const to of emails) {
@@ -101,8 +128,8 @@ export const notifyTeacherDecision = createServerFn({ method: "POST" })
     const html = `
       <div dir="rtl" style="font-family: Arial, sans-serif;">
         <h2>${data.approved ? "בקשת ההיעדרות אושרה" : "בקשת ההיעדרות נדחתה"}</h2>
-        <p>תאריך: ${data.absenceDate}</p>
-        ${data.note ? `<p>הערה: ${data.note}</p>` : ""}
+        <p>תאריך: ${escapeHtml(data.absenceDate)}</p>
+        ${data.note ? `<p><strong>${data.approved ? "הערה" : "סיבת הדחייה"}:</strong> ${escapeHtml(data.note)}</p>` : ""}
       </div>
     `;
     return sendEmail({

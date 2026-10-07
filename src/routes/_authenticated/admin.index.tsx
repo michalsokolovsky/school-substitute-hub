@@ -32,6 +32,8 @@ function AdminDashboard() {
   const [rows, setRows] = useState<PendingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
   const notifyFn = useServerFn(notifyTeacherDecision);
   const claimFn = useServerFn(claimAdminIfNone);
 
@@ -63,7 +65,11 @@ function AdminDashboard() {
 
   async function decide(row: PendingRow, approved: boolean) {
     const status = approved ? "approved" : "rejected";
-    const note = notes[row.id] ?? null;
+    const note = (approved ? notes[row.id] : reasons[row.id])?.trim() || null;
+    if (!approved && !note) {
+      alert("יש לכתוב סיבה לדחייה.");
+      return;
+    }
     const { error } = await supabase
       .from("absence_requests")
       .update({ status, decided_at: new Date().toISOString(), admin_note: note })
@@ -72,6 +78,7 @@ function AdminDashboard() {
       alert("שגיאה: " + error.message);
       return;
     }
+    setRejectingId(null);
     if (!approved) {
       const lessonIds = row.absence_lessons.map((l) => l.id).filter(Boolean);
       if (lessonIds.length > 0) {
@@ -134,26 +141,56 @@ function AdminDashboard() {
                     ))}
                 </tbody>
               </table>
-              <div className="mt-3 flex items-center gap-2">
-                <input
-                  placeholder="הערה (אופציונלי)"
-                  value={notes[r.id] ?? ""}
-                  onChange={(e) => setNotes((n) => ({ ...n, [r.id]: e.target.value }))}
-                  className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
-                />
-                <button
-                  onClick={() => decide(r, true)}
-                  className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                >
-                  אישור
-                </button>
-                <button
-                  onClick={() => decide(r, false)}
-                  className="rounded-md border border-destructive px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"
-                >
-                  דחייה
-                </button>
-              </div>
+              {rejectingId === r.id ? (
+                <div className="mt-3 space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3">
+                  <label className="block text-sm font-medium">
+                    סיבת הדחייה <span className="font-normal text-muted-foreground">(חובה, תישלח למורה)</span>
+                  </label>
+                  <textarea
+                    autoFocus
+                    rows={2}
+                    value={reasons[r.id] ?? ""}
+                    onChange={(e) => setReasons((x) => ({ ...x, [r.id]: e.target.value }))}
+                    className="w-full rounded-md border bg-background px-3 py-1.5 text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => decide(r, false)}
+                      disabled={!(reasons[r.id] ?? "").trim()}
+                      className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+                    >
+                      שליחת דחייה
+                    </button>
+                    <button
+                      onClick={() => setRejectingId(null)}
+                      className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary"
+                    >
+                      ביטול
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 flex items-center gap-2">
+                  <input
+                    placeholder="הערה לאישור (אופציונלי)"
+                    value={notes[r.id] ?? ""}
+                    onChange={(e) => setNotes((n) => ({ ...n, [r.id]: e.target.value }))}
+                    className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
+                  />
+                  <button
+                    onClick={() => decide(r, true)}
+                    className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    אישור
+                  </button>
+                  <button
+                    onClick={() => setRejectingId(r.id)}
+                    className="rounded-md border border-destructive px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"
+                  >
+                    דחייה
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

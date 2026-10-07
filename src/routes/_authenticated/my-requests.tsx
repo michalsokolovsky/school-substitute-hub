@@ -85,7 +85,7 @@ function MyRequestsPage() {
                 </tbody>
               </table>
               {r.admin_note && (
-                <div className="mt-2 rounded-md bg-accent px-2 py-1 text-sm">הערה: {r.admin_note}</div>
+                <div className="mt-2 rounded-md bg-accent px-2 py-1 text-sm">{r.status === "rejected" ? "סיבת הדחייה" : "הערה"}: {r.admin_note}</div>
               )}
             </div>
           ))}
