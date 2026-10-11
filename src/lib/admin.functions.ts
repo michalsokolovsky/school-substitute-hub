@@ -245,7 +245,9 @@ export const deleteTeacher = createServerFn({ method: "POST" })
         .eq("role", "admin")
         .maybeSingle();
       if (adminRole) {
-        throw new Error("המורה היא גם מנהלת. יש להסיר קודם את הרשאת המנהלת.");
+        throw new Error(
+          'המורה היא גם מנהלת. יש להסיר קודם את הרשאת המנהלת דרך "אפשרויות נוספות" ← "מנהלות והרשאות".',
+        );
       }
     }
 
