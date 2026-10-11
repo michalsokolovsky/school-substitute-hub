@@ -1,9 +1,25 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import * as XLSX from "xlsx";
-import { ChevronDown, ShieldCheck, TriangleAlert, Upload } from "lucide-react";
+import { EllipsisVertical, ShieldCheck, TriangleAlert, Upload, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   importTeachers,
   grantAdmin,
@@ -63,8 +79,24 @@ function parseTeacherRows(rowsRaw: Record<string, unknown>[]) {
     .filter((r) => r.full_name && r.email);
 }
 
+const EMPTY_NEW_TEACHER = {
+  full_name: "",
+  email: "",
+  phone: "",
+  type: "regular" as Teacher["type"],
+};
+const RESET_WORD = "איפוס";
+
 function AdminTeachers() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [newTeacher, setNewTeacher] = useState(EMPTY_NEW_TEACHER);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [adminsOpen, setAdminsOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetText, setResetText] = useState("");
   const [importResult, setImportResult] = useState<
     { email: string; ok: boolean; error?: string }[] | null
   >(null);
@@ -102,18 +134,6 @@ function AdminTeachers() {
   }, []);
 
   const adminUserIds = new Set(admins.map((a) => a.user_id));
-
-  async function onMakeAdmin(t: Teacher) {
-    if (!confirm(`להפוך את ${t.full_name} למנהלת? תהיה לה גישה מלאה לניהול המערכת.`)) return;
-    setActionMessage(null);
-    try {
-      await grantFn({ data: { email: t.email } });
-      setActionMessage(`${t.full_name} קיבלה הרשאות מנהלת.`);
-      loadAdmins();
-    } catch (err) {
-      setActionMessage("שגיאה: " + (err instanceof Error ? err.message : String(err)));
-    }
-  }
 
   async function onRevokeAdmin(userId: string, label: string) {
     if (!confirm(`להסיר את הרשאת המנהלת מ-${label}?`)) return;
@@ -166,10 +186,7 @@ function AdminTeachers() {
       if (rows.length === 0) {
         const detectedColumns =
           rowsRaw.length > 0
-            ? Object.keys(rowsRaw[0])
-                .map(cleanKey)
-                .filter(Boolean)
-                .join(", ")
+            ? Object.keys(rowsRaw[0]).map(cleanKey).filter(Boolean).join(", ")
             : "לא זוהו עמודות";
         setImportResult([
           {
@@ -193,9 +210,18 @@ function AdminTeachers() {
     }
   }
 
-  async function unlockSchedule(id: string) {
-    if (!confirm("לפתוח את המערכת של המורה לעריכה?")) return;
-    await supabase.from("teachers").update({ schedule_locked: false }).eq("id", id);
+  async function toggleScheduleLock(t: Teacher) {
+    const lock = !t.schedule_locked;
+    const question = lock
+      ? `לסגור את המערכת של ${t.full_name} לעריכה? היא לא תוכל לשנות אותה.`
+      : `לפתוח את המערכת של ${t.full_name} לעריכה?`;
+    if (!confirm(question)) return;
+    setActionMessage(null);
+    const { error } = await supabase
+      .from("teachers")
+      .update({ schedule_locked: lock })
+      .eq("id", t.id);
+    if (error) setActionMessage("שגיאה: " + error.message);
     load();
   }
 
@@ -215,20 +241,52 @@ function AdminTeachers() {
   }
 
   async function onClearTeacherAccounts() {
-    const typed = prompt(
-      "פעולה זו מוחקת את כל חשבונות ההתחברות של המורות, והן יצטרכו להירשם מחדש.\nכדי להמשיך, הקלידי: איפוס",
-    );
-    if (typed?.trim() !== "איפוס") return;
+    if (resetText.trim() !== RESET_WORD) return;
     setClearing(true);
-    setGrantMessage(null);
+    setActionMessage(null);
     try {
       const res = await clearFn();
-      setGrantMessage(`נמחקו ${res.deleted} חשבונות מורות. המורות יכולות להירשם מחדש.`);
+      setActionMessage(`נמחקו ${res.deleted} חשבונות מורות. המורות יכולות להירשם מחדש.`);
       load();
     } catch (err) {
-      setGrantMessage("שגיאה: " + (err instanceof Error ? err.message : String(err)));
+      setActionMessage("שגיאה: " + (err instanceof Error ? err.message : String(err)));
     }
     setClearing(false);
+    setResetOpen(false);
+    setResetText("");
+  }
+
+  async function onAddTeacher(e: React.FormEvent) {
+    e.preventDefault();
+    setAddError(null);
+    const full_name = newTeacher.full_name.trim();
+    const email = newTeacher.email.trim();
+    if (teachers.some((t) => t.email.toLowerCase() === email.toLowerCase())) {
+      setAddError("כבר קיימת מורה עם האימייל הזה.");
+      return;
+    }
+    setAdding(true);
+    try {
+      const res = await importFn({
+        data: {
+          rows: [
+            { full_name, email, phone: newTeacher.phone.trim() || null, type: newTeacher.type },
+          ],
+        },
+      });
+      const result = res.results[0];
+      if (!result?.ok) {
+        setAddError(result?.error ?? "שגיאה בהוספת המורה.");
+      } else {
+        setActionMessage(`${full_name} נוספה לרשימה. היא נרשמת בעצמה בדף ההרשמה.`);
+        setAddOpen(false);
+        setNewTeacher(EMPTY_NEW_TEACHER);
+        load();
+      }
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : String(err));
+    }
+    setAdding(false);
   }
 
   return (
@@ -238,20 +296,50 @@ function AdminTeachers() {
           <h1 className="text-2xl font-bold">ניהול מורות</h1>
           <p className="text-sm text-muted-foreground">עריכת מערכות וניהול הרשאות</p>
         </div>
-        <label
-          title="קובץ אקסל עם העמודות: שם מלא, אימייל, טלפון, סוג. לא נוצרות סיסמאות, כל מורה נרשמת בעצמה בדף ההרשמה."
-          className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-secondary"
-        >
-          <Upload className="h-3.5 w-3.5" />
-          {importing ? "מייבא..." : "ייבוא מאקסל"}
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <UserPlus />
+            הוספת מורה
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" aria-label="אפשרויות נוספות">
+                <EllipsisVertical />
+                אפשרויות נוספות
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem
+                disabled={importing}
+                onSelect={() => fileRef.current?.click()}
+                title="קובץ אקסל עם העמודות: שם מלא, אימייל, טלפון, סוג. לא נוצרות סיסמאות, כל מורה נרשמת בעצמה בדף ההרשמה."
+              >
+                <Upload className="ml-2 h-4 w-4" />
+                {importing ? "מייבא..." : "ייבוא מורות מאקסל"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setAdminsOpen(true)}>
+                <ShieldCheck className="ml-2 h-4 w-4" />
+                מנהלות והרשאות{admins.length > 0 ? ` (${admins.length})` : ""}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={() => setResetOpen(true)}
+              >
+                <TriangleAlert className="ml-2 h-4 w-4" />
+                איפוס חשבונות התחברות
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <input
+            ref={fileRef}
             type="file"
             accept=".xlsx,.xls,.csv"
             onChange={onFile}
             disabled={importing}
             className="sr-only"
           />
-        </label>
+        </div>
       </div>
 
       {importResult && (
@@ -276,58 +364,9 @@ function AdminTeachers() {
         </div>
       )}
 
-      <details className="group rounded-lg border bg-card text-sm">
-        <summary className="flex cursor-pointer select-none list-none items-center gap-2 p-3 font-medium [&::-webkit-details-marker]:hidden">
-          <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-          מנהלות{admins.length > 0 ? ` (${admins.length})` : ""}
-          <ChevronDown className="mr-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="space-y-3 border-t p-3">
-          <form onSubmit={onGrantAdmin} className="flex flex-wrap items-center gap-2">
-            <input
-              type="email"
-              required
-              placeholder="אימייל של משתמשת קיימת"
-              value={grantEmail}
-              onChange={(e) => setGrantEmail(e.target.value)}
-              className="min-w-[220px] flex-1 rounded-md border bg-background px-2.5 py-1.5 text-xs"
-            />
-            <button
-              type="submit"
-              disabled={granting}
-              className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-secondary disabled:opacity-60"
-            >
-              {granting ? "מעדכן..." : "הענקת הרשאת מנהלת"}
-            </button>
-          </form>
-          {grantMessage && <p className="text-xs">{grantMessage}</p>}
-
-          {admins.length > 0 && (
-            <ul className="divide-y text-xs">
-              {admins.map((a) => (
-                <li key={a.user_id} className="flex items-center justify-between gap-2 py-1.5">
-                  <span>
-                    {a.full_name ? `${a.full_name} · ` : ""}
-                    {a.email}
-                    {a.is_me && <span className="text-muted-foreground"> (את)</span>}
-                  </span>
-                  {!a.is_me && (
-                    <button
-                      type="button"
-                      onClick={() => onRevokeAdmin(a.user_id, a.full_name ?? a.email)}
-                      className="rounded border border-destructive px-2 py-0.5 text-destructive hover:bg-destructive/10"
-                    >
-                      הסרת הרשאה
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </details>
-
-      {actionMessage && <div className="rounded-md bg-accent px-3 py-2 text-sm">{actionMessage}</div>}
+      {actionMessage && (
+        <div className="rounded-md bg-accent px-3 py-2 text-sm">{actionMessage}</div>
+      )}
 
       <div className="rounded-lg border bg-card">
         <table className="w-full text-sm">
@@ -366,33 +405,13 @@ function AdminTeachers() {
                     >
                       עריכת מערכת
                     </Link>
-                    {t.schedule_locked && (
-                      <button
-                        type="button"
-                        onClick={() => unlockSchedule(t.id)}
-                        className="rounded border px-2 py-1 text-xs hover:bg-secondary"
-                      >
-                        פתיחה למורה
-                      </button>
-                    )}
-                    {t.user_id && !adminUserIds.has(t.user_id) && (
-                      <button
-                        type="button"
-                        onClick={() => onMakeAdmin(t)}
-                        className="rounded border px-2 py-1 text-xs hover:bg-secondary"
-                      >
-                        הפיכה למנהלת
-                      </button>
-                    )}
-                    {t.user_id && adminUserIds.has(t.user_id) && (
-                      <button
-                        type="button"
-                        onClick={() => onRevokeAdmin(t.user_id!, t.full_name)}
-                        className="rounded border px-2 py-1 text-xs hover:bg-secondary"
-                      >
-                        הסרת מנהלת
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggleScheduleLock(t)}
+                      className="rounded border px-2 py-1 text-xs hover:bg-secondary"
+                    >
+                      {t.schedule_locked ? "פתיחה למורה" : "סגירה למורה"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => onDeleteTeacher(t)}
@@ -407,7 +426,7 @@ function AdminTeachers() {
             {teachers.length === 0 && (
               <tr>
                 <td colSpan={7} className="p-4 text-center text-muted-foreground">
-                  אין מורות. ייבאי מאקסל.
+                  אין מורות עדיין. הוסיפי מורה או ייבאי מאקסל.
                 </td>
               </tr>
             )}
@@ -415,32 +434,177 @@ function AdminTeachers() {
         </table>
       </div>
 
-      <details className="group rounded-lg border border-destructive/30 bg-card text-sm">
-        <summary className="flex cursor-pointer select-none list-none items-center gap-2 p-3 font-medium [&::-webkit-details-marker]:hidden">
-          <TriangleAlert className="h-4 w-4 text-destructive" />
-          פעולות מתקדמות
-          <ChevronDown className="mr-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="border-t border-destructive/30 p-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-[240px] flex-1">
-              <div className="font-medium">איפוס חשבונות התחברות של המורות</div>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                מוחק את כל חשבונות ההתחברות של המורות. הן נשארות ברשימה, ויכולות להירשם מחדש עם
-                סיסמה משלהן. חשבונות מנהלות לא נמחקים.
-              </p>
+      <Dialog
+        open={addOpen}
+        onOpenChange={(open) => {
+          setAddOpen(open);
+          if (!open) {
+            setAddError(null);
+            setNewTeacher(EMPTY_NEW_TEACHER);
+          }
+        }}
+      >
+        <DialogContent>
+          <form onSubmit={onAddTeacher} className="space-y-4">
+            <DialogHeader className="text-right">
+              <DialogTitle>הוספת מורה</DialogTitle>
+              <DialogDescription>
+                המורה נוספת לרשימה בלי סיסמה. היא נרשמת בעצמה בדף ההרשמה עם האימייל הזה.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 text-sm">
+              <label className="block space-y-1">
+                <span className="font-medium">שם מלא</span>
+                <input
+                  required
+                  value={newTeacher.full_name}
+                  onChange={(e) => setNewTeacher({ ...newTeacher, full_name: e.target.value })}
+                  className="w-full rounded-md border bg-background px-2.5 py-1.5"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="font-medium">אימייל</span>
+                <input
+                  required
+                  type="email"
+                  dir="ltr"
+                  value={newTeacher.email}
+                  onChange={(e) => setNewTeacher({ ...newTeacher, email: e.target.value })}
+                  className="w-full rounded-md border bg-background px-2.5 py-1.5 text-left"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="font-medium">
+                  טלפון <span className="font-normal text-muted-foreground">(לא חובה)</span>
+                </span>
+                <input
+                  type="tel"
+                  dir="ltr"
+                  value={newTeacher.phone}
+                  onChange={(e) => setNewTeacher({ ...newTeacher, phone: e.target.value })}
+                  className="w-full rounded-md border bg-background px-2.5 py-1.5 text-left"
+                />
+              </label>
+              <label className="block space-y-1">
+                <span className="font-medium">סוג</span>
+                <select
+                  value={newTeacher.type}
+                  onChange={(e) =>
+                    setNewTeacher({ ...newTeacher, type: e.target.value as Teacher["type"] })
+                  }
+                  className="w-full rounded-md border bg-background px-2.5 py-1.5"
+                >
+                  <option value="regular">פנימית</option>
+                  <option value="external">חיצונית (ממלאת)</option>
+                </select>
+              </label>
+              {addError && <p className="text-destructive">{addError}</p>}
             </div>
-            <button
+            <DialogFooter className="gap-2 sm:justify-start">
+              <Button type="submit" disabled={adding}>
+                {adding ? "מוסיפה..." : "הוספה"}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
+                ביטול
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={adminsOpen} onOpenChange={setAdminsOpen}>
+        <DialogContent>
+          <DialogHeader className="text-right">
+            <DialogTitle>מנהלות והרשאות</DialogTitle>
+            <DialogDescription>
+              מנהלת רואה ומנהלת את כל המערכת. אפשר להוסיף מנהלת לפי האימייל של משתמשת שכבר נרשמה.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={onGrantAdmin} className="flex flex-wrap items-center gap-2">
+            <input
+              type="email"
+              required
+              dir="ltr"
+              placeholder="אימייל של משתמשת קיימת"
+              value={grantEmail}
+              onChange={(e) => setGrantEmail(e.target.value)}
+              className="min-w-[200px] flex-1 rounded-md border bg-background px-2.5 py-1.5 text-left text-sm"
+            />
+            <Button type="submit" size="sm" disabled={granting}>
+              {granting ? "מעדכנת..." : "הוספת מנהלת"}
+            </Button>
+          </form>
+          {grantMessage && <p className="text-sm">{grantMessage}</p>}
+          {admins.length > 0 && (
+            <ul className="max-h-64 divide-y overflow-y-auto text-sm">
+              {admins.map((a) => (
+                <li key={a.user_id} className="flex items-center justify-between gap-2 py-2">
+                  <span>
+                    {a.full_name ? `${a.full_name} · ` : ""}
+                    {a.email}
+                    {a.is_me && <span className="text-muted-foreground"> (את)</span>}
+                  </span>
+                  {!a.is_me && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="border-destructive text-destructive hover:bg-destructive/10"
+                      onClick={() => onRevokeAdmin(a.user_id, a.full_name ?? a.email)}
+                    >
+                      הסרת הרשאה
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={resetOpen}
+        onOpenChange={(open) => {
+          setResetOpen(open);
+          if (!open) setResetText("");
+        }}
+      >
+        <DialogContent>
+          <DialogHeader className="text-right">
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <TriangleAlert className="h-5 w-5" />
+              איפוס חשבונות התחברות
+            </DialogTitle>
+            <DialogDescription>
+              הפעולה מוחקת את כל חשבונות ההתחברות של המורות. הן נשארות ברשימה ויכולות להירשם מחדש עם
+              סיסמה משלהן. חשבונות מנהלות לא נמחקים. אי אפשר לבטל.
+            </DialogDescription>
+          </DialogHeader>
+          <label className="block space-y-1 text-sm">
+            <span>
+              כדי להמשיך, הקלידי: <strong>{RESET_WORD}</strong>
+            </span>
+            <input
+              value={resetText}
+              onChange={(e) => setResetText(e.target.value)}
+              className="w-full rounded-md border bg-background px-2.5 py-1.5"
+            />
+          </label>
+          <DialogFooter className="gap-2 sm:justify-start">
+            <Button
               type="button"
+              variant="destructive"
+              disabled={clearing || resetText.trim() !== RESET_WORD}
               onClick={onClearTeacherAccounts}
-              disabled={clearing}
-              className="shrink-0 rounded-md border border-destructive px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-60"
             >
-              {clearing ? "מאפס..." : "איפוס חשבונות"}
-            </button>
-          </div>
-        </div>
-      </details>
+              {clearing ? "מאפסת..." : "איפוס חשבונות"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setResetOpen(false)}>
+              ביטול
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
