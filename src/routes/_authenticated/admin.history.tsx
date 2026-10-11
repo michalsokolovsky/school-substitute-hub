@@ -16,6 +16,8 @@ type Row = {
   teachers: { full_name: string } | null;
   absence_lessons: {
     lesson_number: number;
+    status: "pending" | "approved" | "rejected";
+    admin_note: string | null;
     subject: string | null;
     class_name: string | null;
     teachers: { full_name: string } | null;
@@ -37,7 +39,7 @@ function AdminHistory() {
       const { data } = await supabase
         .from("absence_requests")
         .select(
-          "id, absence_date, status, decided_at, teachers:teacher_id(full_name), absence_lessons(lesson_number, subject, class_name, teachers:substitute_teacher_id(full_name))",
+          "id, absence_date, status, decided_at, teachers:teacher_id(full_name), absence_lessons(lesson_number, status, admin_note, subject, class_name, teachers:substitute_teacher_id(full_name))",
         )
         .order("absence_date", { ascending: false });
       setRows((data as unknown as Row[]) ?? []);
@@ -60,7 +62,9 @@ function AdminHistory() {
                   <div className="font-semibold">{r.teachers?.full_name}</div>
                   <div className="text-sm text-muted-foreground">
                     {r.absence_date}
-                    {r.decided_at ? ` · הוחלט: ${new Date(r.decided_at).toLocaleDateString("he-IL")}` : ""}
+                    {r.decided_at
+                      ? ` · הוחלט: ${new Date(r.decided_at).toLocaleDateString("he-IL")}`
+                      : ""}
                   </div>
                 </div>
                 <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium">
@@ -72,12 +76,20 @@ function AdminHistory() {
                   {r.absence_lessons
                     .sort((a, b) => a.lesson_number - b.lesson_number)
                     .map((l) => (
-                      <tr key={l.lesson_number} className="border-t">
+                      <tr key={l.lesson_number} className="border-t align-top">
                         <td className="py-1.5">שיעור {l.lesson_number}</td>
                         <td className="py-1.5">
                           {l.subject} · {l.class_name}
                         </td>
                         <td className="py-1.5">{l.teachers?.full_name ?? "—"}</td>
+                        <td className="py-1.5">
+                          {r.status !== "pending" && STATUS_LABEL[l.status]}
+                          {l.status === "rejected" && l.admin_note && (
+                            <div className="text-xs text-muted-foreground">
+                              סיבה: {l.admin_note}
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))}
                 </tbody>

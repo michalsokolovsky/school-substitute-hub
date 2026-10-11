@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyTeacherDecision } from "@/lib/email.functions";
-import { claimAdminIfNone } from "@/lib/admin.functions";
+import { claimAdminIfNone, decideAbsenceRequest } from "@/lib/admin.functions";
 import { requireAdmin } from "@/lib/auth-guards";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
@@ -27,15 +27,20 @@ type PendingRow = {
   }[];
 };
 
+// The admin's choice for one lesson, kept locally until she sends the whole decision.
+type LessonDecision = { approved: boolean; reason: string };
+
 function AdminDashboard() {
   const { bootstrap } = Route.useRouteContext();
   const [rows, setRows] = useState<PendingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [decisions, setDecisions] = useState<Record<string, LessonDecision>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
-  const [reasons, setReasons] = useState<Record<string, string>>({});
-  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const notifyFn = useServerFn(notifyTeacherDecision);
   const claimFn = useServerFn(claimAdminIfNone);
+  const decideFn = useServerFn(decideAbsenceRequest);
 
   async function load() {
     setLoading(true);
@@ -63,43 +68,55 @@ function AdminDashboard() {
     })();
   }, [bootstrap]);
 
-  async function decide(row: PendingRow, approved: boolean) {
-    const status = approved ? "approved" : "rejected";
-    const note = (approved ? notes[row.id] : reasons[row.id])?.trim() || null;
-    if (!approved && !note) {
-      alert("יש לכתוב סיבה לדחייה.");
-      return;
-    }
-    const { error } = await supabase
-      .from("absence_requests")
-      .update({ status, decided_at: new Date().toISOString(), admin_note: note })
-      .eq("id", row.id);
-    if (error) {
-      alert("שגיאה: " + error.message);
-      return;
-    }
-    setRejectingId(null);
-    if (!approved) {
-      const lessonIds = row.absence_lessons.map((l) => l.id).filter(Boolean);
-      if (lessonIds.length > 0) {
-        await supabase.from("substitute_assignments").delete().in("absence_lesson_id", lessonIds);
-      }
-    }
+  function setDecision(lessonId: string, patch: Partial<LessonDecision> & { approved: boolean }) {
+    setDecisions((d) => ({
+      ...d,
+      [lessonId]: { approved: patch.approved, reason: patch.reason ?? d[lessonId]?.reason ?? "" },
+    }));
+  }
+
+  async function send(row: PendingRow, all: Record<string, LessonDecision>) {
+    setError(null);
+    setSendingId(row.id);
     try {
-      if (row.teachers?.email) {
-        await notifyFn({
-          data: {
-            teacherEmail: row.teachers.email,
-            absenceDate: row.absence_date,
-            approved,
-            note: note ?? undefined,
-          },
-        });
+      const note = notes[row.id]?.trim() || undefined;
+      const res = await decideFn({
+        data: {
+          requestId: row.id,
+          note,
+          decisions: row.absence_lessons.map((l) => ({
+            lessonId: l.id,
+            approved: all[l.id].approved,
+            reason: all[l.id].approved ? undefined : all[l.id].reason.trim(),
+          })),
+        },
+      });
+      try {
+        if (res.teacherEmail) {
+          await notifyFn({
+            data: {
+              teacherEmail: res.teacherEmail,
+              absenceDate: res.absenceDate,
+              note,
+              lessons: res.lessons,
+            },
+          });
+        }
+      } catch {
+        /* the decision is saved; the email is best-effort */
       }
-    } catch {
-      /* ignore */
+      await load();
+    } catch (err) {
+      setError("שגיאה: " + (err instanceof Error ? err.message : String(err)));
     }
-    load();
+    setSendingId(null);
+  }
+
+  function approveAll(row: PendingRow) {
+    const all: Record<string, LessonDecision> = {};
+    for (const l of row.absence_lessons) all[l.id] = { approved: true, reason: "" };
+    setDecisions((d) => ({ ...d, ...all }));
+    send(row, all);
   }
 
   if (loading) return <p className="text-muted-foreground">טוען...</p>;
@@ -107,92 +124,127 @@ function AdminDashboard() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">בקשות ממתינות לאישור</h1>
+      {error && (
+        <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </div>
+      )}
       {rows.length === 0 ? (
         <p className="text-muted-foreground">אין בקשות ממתינות.</p>
       ) : (
         <div className="space-y-3">
-          {rows.map((r) => (
-            <div key={r.id} className="rounded-lg border bg-card p-4">
-              <div className="flex items-center justify-between border-b pb-2">
-                <div>
-                  <div className="font-semibold">{r.teachers?.full_name}</div>
-                  <div className="text-sm text-muted-foreground">{r.absence_date}</div>
-                </div>
-              </div>
-              <table className="mt-2 w-full text-sm">
-                <thead>
-                  <tr className="text-right text-muted-foreground">
-                    <th className="py-1">שיעור</th>
-                    <th className="py-1">מקצוע / כיתה</th>
-                    <th className="py-1">ממלאת מקום</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.absence_lessons
-                    .sort((a, b) => a.lesson_number - b.lesson_number)
-                    .map((l) => (
-                      <tr key={l.lesson_number} className="border-t">
-                        <td className="py-1.5">{l.lesson_number}</td>
-                        <td className="py-1.5">
-                          {l.subject} · {l.class_name}
-                        </td>
-                        <td className="py-1.5 font-medium">{l.teachers?.full_name ?? "—"}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-              {rejectingId === r.id ? (
-                <div className="mt-3 space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3">
-                  <label className="block text-sm font-medium">
-                    סיבת הדחייה <span className="font-normal text-muted-foreground">(חובה, תישלח למורה)</span>
-                  </label>
-                  <textarea
-                    autoFocus
-                    rows={2}
-                    value={reasons[r.id] ?? ""}
-                    onChange={(e) => setReasons((x) => ({ ...x, [r.id]: e.target.value }))}
-                    className="w-full rounded-md border bg-background px-3 py-1.5 text-sm"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => decide(r, false)}
-                      disabled={!(reasons[r.id] ?? "").trim()}
-                      className="rounded-md bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
-                    >
-                      שליחת דחייה
-                    </button>
-                    <button
-                      onClick={() => setRejectingId(null)}
-                      className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary"
-                    >
-                      ביטול
-                    </button>
+          {rows.map((r) => {
+            const lessons = [...r.absence_lessons].sort(
+              (a, b) => a.lesson_number - b.lesson_number,
+            );
+            const decidedCount = lessons.filter((l) => decisions[l.id]).length;
+            const missingReason = lessons.some(
+              (l) => decisions[l.id] && !decisions[l.id].approved && !decisions[l.id].reason.trim(),
+            );
+            const ready = decidedCount === lessons.length && !missingReason;
+            const sending = sendingId === r.id;
+            return (
+              <div key={r.id} className="rounded-lg border bg-card p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                  <div>
+                    <div className="font-semibold">{r.teachers?.full_name}</div>
+                    <div className="text-sm text-muted-foreground">{r.absence_date}</div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => approveAll(r)}
+                    disabled={sending}
+                    className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    אישור הכול
+                  </button>
                 </div>
-              ) : (
-                <div className="mt-3 flex items-center gap-2">
+                <table className="mt-2 w-full text-sm">
+                  <thead>
+                    <tr className="text-right text-muted-foreground">
+                      <th className="py-1">שיעור</th>
+                      <th className="py-1">מקצוע / כיתה</th>
+                      <th className="py-1">ממלאת מקום</th>
+                      <th className="py-1">החלטה</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lessons.map((l) => {
+                      const d = decisions[l.id];
+                      return (
+                        <tr key={l.id} className="border-t align-top">
+                          <td className="py-2">{l.lesson_number}</td>
+                          <td className="py-2">
+                            {l.subject} · {l.class_name}
+                          </td>
+                          <td className="py-2 font-medium">{l.teachers?.full_name ?? "—"}</td>
+                          <td className="py-2">
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setDecision(l.id, { approved: true })}
+                                className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
+                                  d?.approved
+                                    ? "border-green-600 bg-green-600 text-white"
+                                    : "hover:bg-secondary"
+                                }`}
+                              >
+                                מאושר
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDecision(l.id, { approved: false })}
+                                className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
+                                  d && !d.approved
+                                    ? "border-destructive bg-destructive text-destructive-foreground"
+                                    : "border-destructive text-destructive hover:bg-destructive/10"
+                                }`}
+                              >
+                                נדחה
+                              </button>
+                            </div>
+                            {d && !d.approved && (
+                              <input
+                                autoFocus
+                                placeholder="סיבת הדחייה (חובה)"
+                                value={d.reason}
+                                onChange={(e) =>
+                                  setDecision(l.id, { approved: false, reason: e.target.value })
+                                }
+                                className="mt-1.5 w-full min-w-[180px] rounded-md border bg-background px-2 py-1 text-xs"
+                              />
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   <input
-                    placeholder="הערה לאישור (אופציונלי)"
+                    placeholder="הערה למורה (אופציונלי)"
                     value={notes[r.id] ?? ""}
                     onChange={(e) => setNotes((n) => ({ ...n, [r.id]: e.target.value }))}
-                    className="flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
+                    className="min-w-[200px] flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
                   />
+                  <span className="text-xs text-muted-foreground">
+                    הוחלט על {decidedCount} מתוך {lessons.length} שיעורים
+                  </span>
                   <button
-                    onClick={() => decide(r, true)}
-                    className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                    type="button"
+                    onClick={() => send(r, decisions)}
+                    disabled={!ready || sending}
+                    className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                   >
-                    אישור
-                  </button>
-                  <button
-                    onClick={() => setRejectingId(r.id)}
-                    className="rounded-md border border-destructive px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10"
-                  >
-                    דחייה
+                    {sending ? "שולחת..." : "שליחת ההחלטה"}
                   </button>
                 </div>
-              )}
-            </div>
-          ))}
+                {missingReason && (
+                  <p className="mt-1 text-xs text-destructive">יש לכתוב סיבה לכל שיעור שנדחה.</p>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

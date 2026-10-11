@@ -17,34 +17,40 @@ export type Database = {
       absence_lessons: {
         Row: {
           ability_group: string | null
+          admin_note: string | null
           absence_request_id: string
           class_name: string | null
           created_at: string
           grade_level: string | null
           id: string
           lesson_number: number
+          status: Database["public"]["Enums"]["absence_status"]
           subject: string | null
           substitute_teacher_id: string | null
         }
         Insert: {
           ability_group?: string | null
+          admin_note?: string | null
           absence_request_id: string
           class_name?: string | null
           created_at?: string
           grade_level?: string | null
           id?: string
           lesson_number: number
+          status?: Database["public"]["Enums"]["absence_status"]
           subject?: string | null
           substitute_teacher_id?: string | null
         }
         Update: {
           ability_group?: string | null
+          admin_note?: string | null
           absence_request_id?: string
           class_name?: string | null
           created_at?: string
           grade_level?: string | null
           id?: string
           lesson_number?: number
+          status?: Database["public"]["Enums"]["absence_status"]
           subject?: string | null
           substitute_teacher_id?: string | null
         }

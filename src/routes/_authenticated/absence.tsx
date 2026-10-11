@@ -80,14 +80,15 @@ function AbsencePage() {
   async function fetchRequestedLessons(tid: string, date: string) {
     const { data } = await supabase
       .from("absence_requests")
-      .select("status, absence_lessons(lesson_number)")
+      .select("status, absence_lessons(lesson_number, status)")
       .eq("teacher_id", tid)
       .eq("absence_date", date)
       .in("status", ["pending", "approved"]);
     const map: Record<number, "pending" | "approved"> = {};
     data?.forEach((r) =>
       r.absence_lessons?.forEach((l) => {
-        map[l.lesson_number] = r.status as "pending" | "approved";
+        if (l.status === "rejected") return;
+        map[l.lesson_number] = l.status as "pending" | "approved";
       }),
     );
     return map;
