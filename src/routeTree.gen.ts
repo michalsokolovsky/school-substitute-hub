@@ -23,6 +23,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminHistoryRouteImport } from './routes/_authenticated/admin.history'
 import { Route as AuthenticatedAdminTeachersRouteImport } from './routes/_authenticated/admin.teachers'
 import { Route as AuthenticatedAdminWorkloadRouteImport } from './routes/_authenticated/admin.workload'
+import { Route as ApiCronPendingReminderRouteImport } from './routes/api/cron/pending-reminder'
 import { Route as AuthenticatedAdminTeachersIndexRouteImport } from './routes/_authenticated/admin.teachers.index'
 import { Route as AuthenticatedAdminTeachersTeacherIdScheduleRouteImport } from './routes/_authenticated/admin.teachers.$teacherId.schedule'
 
@@ -98,6 +99,11 @@ const AuthenticatedAdminWorkloadRoute =
     path: '/admin/workload',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiCronPendingReminderRoute = ApiCronPendingReminderRouteImport.update({
+  id: '/api/cron/pending-reminder',
+  path: '/api/cron/pending-reminder',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAdminTeachersIndexRoute =
   AuthenticatedAdminTeachersIndexRouteImport.update({
     id: '/',
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/admin/history': typeof AuthenticatedAdminHistoryRoute
   '/admin/teachers': typeof AuthenticatedAdminTeachersRouteWithChildren
   '/admin/workload': typeof AuthenticatedAdminWorkloadRoute
+  '/api/cron/pending-reminder': typeof ApiCronPendingReminderRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/admin/teachers/': typeof AuthenticatedAdminTeachersIndexRoute
   '/admin/teachers/$teacherId/schedule': typeof AuthenticatedAdminTeachersTeacherIdScheduleRoute
@@ -139,6 +146,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthIndexRoute
   '/admin/history': typeof AuthenticatedAdminHistoryRoute
   '/admin/workload': typeof AuthenticatedAdminWorkloadRoute
+  '/api/cron/pending-reminder': typeof ApiCronPendingReminderRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/admin/teachers': typeof AuthenticatedAdminTeachersIndexRoute
   '/admin/teachers/$teacherId/schedule': typeof AuthenticatedAdminTeachersTeacherIdScheduleRoute
@@ -158,6 +166,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/history': typeof AuthenticatedAdminHistoryRoute
   '/_authenticated/admin/teachers': typeof AuthenticatedAdminTeachersRouteWithChildren
   '/_authenticated/admin/workload': typeof AuthenticatedAdminWorkloadRoute
+  '/api/cron/pending-reminder': typeof ApiCronPendingReminderRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/admin/teachers/': typeof AuthenticatedAdminTeachersIndexRoute
   '/_authenticated/admin/teachers/$teacherId/schedule': typeof AuthenticatedAdminTeachersTeacherIdScheduleRoute
@@ -177,6 +186,7 @@ export interface FileRouteTypes {
     | '/admin/history'
     | '/admin/teachers'
     | '/admin/workload'
+    | '/api/cron/pending-reminder'
     | '/admin/'
     | '/admin/teachers/'
     | '/admin/teachers/$teacherId/schedule'
@@ -192,6 +202,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/admin/history'
     | '/admin/workload'
+    | '/api/cron/pending-reminder'
     | '/admin'
     | '/admin/teachers'
     | '/admin/teachers/$teacherId/schedule'
@@ -210,6 +221,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/history'
     | '/_authenticated/admin/teachers'
     | '/_authenticated/admin/workload'
+    | '/api/cron/pending-reminder'
     | '/_authenticated/admin/'
     | '/_authenticated/admin/teachers/'
     | '/_authenticated/admin/teachers/$teacherId/schedule'
@@ -219,6 +231,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
+  ApiCronPendingReminderRoute: typeof ApiCronPendingReminderRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -321,6 +334,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminWorkloadRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/cron/pending-reminder': {
+      id: '/api/cron/pending-reminder'
+      path: '/api/cron/pending-reminder'
+      fullPath: '/api/cron/pending-reminder'
+      preLoaderRoute: typeof ApiCronPendingReminderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/admin/teachers/': {
       id: '/_authenticated/admin/teachers/'
       path: '/'
@@ -398,6 +418,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
+  ApiCronPendingReminderRoute: ApiCronPendingReminderRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
