@@ -28,7 +28,7 @@ export async function appBaseUrl() {
 export async function sendEmail(input: { to: string; subject: string; html: string; from?: string }) {
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   if (!RESEND_API_KEY) {
-    console.log("[email skipped — Resend not configured]", input.to, input.subject);
+    console.warn("[email skipped — Resend not configured]");
     return { skipped: true };
   }
   const from = input.from ?? process.env.EMAIL_FROM ?? "מערכת ממלאות מקום <onboarding@resend.dev>";
