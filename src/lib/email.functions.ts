@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const RESEND_URL = "https://api.resend.com";
 
-function escapeHtml(value: string) {
+export function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -14,7 +14,7 @@ function escapeHtml(value: string) {
 
 // Base address of the app, for links inside emails. APP_URL wins (set it in production);
 // otherwise fall back to the origin of the request that triggered the email.
-async function appBaseUrl() {
+export async function appBaseUrl() {
   const fromEnv = process.env.APP_URL?.trim().replace(/\/+$/, "");
   if (fromEnv) return fromEnv;
   try {
@@ -25,7 +25,7 @@ async function appBaseUrl() {
   }
 }
 
-async function sendEmail(input: { to: string; subject: string; html: string; from?: string }) {
+export async function sendEmail(input: { to: string; subject: string; html: string; from?: string }) {
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   if (!RESEND_API_KEY) {
     console.log("[email skipped — Resend not configured]", input.to, input.subject);

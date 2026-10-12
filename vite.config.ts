@@ -19,7 +19,13 @@ export default defineConfig(({ command }) => ({
     ],
   },
   optimizeDeps: {
-    include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime"],
+    include: [
+      "react",
+      "react-dom",
+      "react-dom/client",
+      "react/jsx-runtime",
+      "react/jsx-dev-runtime",
+    ],
     ignoreOutdatedRequests: true,
   },
   plugins: [
@@ -34,7 +40,21 @@ export default defineConfig(({ command }) => ({
       },
     }),
     // Deploy adapter, build only. Targets Cloudflare unless a preset is passed.
-    ...(command === "build" ? [nitro({ defaultPreset: "cloudflare-module" })] : []),
+    // vercel.config.crons: a daily reminder to the admins about requests waiting over a day
+    // (UTC, Sunday to Thursday). Only the Vercel preset reads it; it needs CRON_SECRET to be set.
+    ...(command === "build"
+      ? [
+          nitro({
+            defaultPreset: "cloudflare-module",
+            vercel: {
+              config: {
+                version: 3,
+                crons: [{ path: "/api/cron/pending-reminder", schedule: "0 5 * * 0-4" }],
+              },
+            },
+          }),
+        ]
+      : []),
     viteReact(),
   ],
 }));
