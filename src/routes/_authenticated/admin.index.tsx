@@ -6,6 +6,8 @@ import { notifyTeacherDecision } from "@/lib/email.functions";
 import { decideAbsenceRequest } from "@/lib/admin.functions";
 import { requireAdmin } from "@/lib/auth-guards";
 import { notifyPendingChanged } from "@/lib/pending-requests";
+import { AdminStats } from "@/components/admin-stats";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   beforeLoad: () => requireAdmin(),
@@ -30,6 +32,25 @@ type PendingRow = {
 
 // The admin's choice for one lesson, kept locally until she sends the whole decision.
 type LessonDecision = { approved: boolean; reason: string };
+
+function RequestSkeleton() {
+  return (
+    <div className="rounded-lg border bg-card p-4" aria-busy="true">
+      <div className="flex items-center justify-between border-b pb-2">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-3 w-20" />
+        </div>
+        <Skeleton className="h-8 w-20" />
+      </div>
+      <div className="mt-3 space-y-3">
+        <Skeleton className="h-5 w-full" />
+        <Skeleton className="h-5 w-full" />
+        <Skeleton className="h-5 w-3/4" />
+      </div>
+    </div>
+  );
+}
 
 function AdminDashboard() {
   const [rows, setRows] = useState<PendingRow[]>([]);
@@ -110,17 +131,18 @@ function AdminDashboard() {
     send(row, all);
   }
 
-  if (loading) return <p className="text-muted-foreground">טוען...</p>;
-
   return (
     <div className="space-y-4">
+      <AdminStats />
       <h1 className="text-2xl font-bold">בקשות ממתינות לאישור</h1>
       {error && (
         <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </div>
       )}
-      {rows.length === 0 ? (
+      {loading ? (
+        <RequestSkeleton />
+      ) : rows.length === 0 ? (
         <p className="text-muted-foreground">אין בקשות ממתינות.</p>
       ) : (
         <div className="space-y-3">
