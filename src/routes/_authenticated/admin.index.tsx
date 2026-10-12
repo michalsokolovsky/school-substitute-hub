@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { notifyTeacherDecision } from "@/lib/email.functions";
 import { claimAdminIfNone, decideAbsenceRequest } from "@/lib/admin.functions";
 import { requireAdmin } from "@/lib/auth-guards";
+import { notifyPendingChanged } from "@/lib/pending-requests";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   beforeLoad: () => requireAdmin({ allowBootstrap: true }),
@@ -106,6 +107,7 @@ function AdminDashboard() {
         /* the decision is saved; the email is best-effort */
       }
       await load();
+      notifyPendingChanged();
     } catch (err) {
       setError("שגיאה: " + (err instanceof Error ? err.message : String(err)));
     }
