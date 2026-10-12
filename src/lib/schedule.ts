@@ -88,6 +88,11 @@ export function buildEmptyGrid(): Record<string, ScheduleSlot> {
   return grid;
 }
 
+/** A schedule nobody has filled in yet: every slot is still the default "free". */
+export function isScheduleEmpty(grid: Record<string, ScheduleSlot>) {
+  return Object.values(grid).every((s) => s.status === "free");
+}
+
 export function slotsToGrid(
   slots: Array<{
     day: number;

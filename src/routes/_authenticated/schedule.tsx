@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ScheduleEditor } from "@/components/schedule-editor";
-import { fetchScheduleForTeacher, saveScheduleForTeacher, buildEmptyGrid, emptyScheduleSlot, type ScheduleSlot } from "@/lib/schedule";
+import { ScheduleView } from "@/components/schedule-view";
+import { fetchScheduleForTeacher, saveScheduleForTeacher, buildEmptyGrid, emptyScheduleSlot, isScheduleEmpty, type ScheduleSlot } from "@/lib/schedule";
 
 export const Route = createFileRoute("/_authenticated/schedule")({
   component: SchedulePage,
@@ -15,6 +16,8 @@ function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -32,7 +35,10 @@ function SchedulePage() {
       setTeacherId(teacher.id);
       setLocked(teacher.schedule_locked);
       try {
-        setGrid(await fetchScheduleForTeacher(teacher.id));
+        const loaded = await fetchScheduleForTeacher(teacher.id);
+        setGrid(loaded);
+        // A schedule nobody filled in yet opens straight in the editor.
+        setEditing(!teacher.schedule_locked && isScheduleEmpty(loaded));
       } catch (e) {
         setMessage("שגיאה בטעינה: " + (e instanceof Error ? e.message : String(e)));
       }
@@ -41,6 +47,7 @@ function SchedulePage() {
   }, []);
 
   function updateSlot(key: string, patch: Partial<ScheduleSlot>) {
+    setDirty(true);
     setGrid((g) => ({
       ...g,
       [key]: { ...(g[key] ?? emptyScheduleSlot()), ...patch },
@@ -57,9 +64,26 @@ function SchedulePage() {
       setSaving(false);
       return;
     }
-    if (lockAfter) setLocked(true);
+    if (lockAfter) {
+      setLocked(true);
+      setEditing(false);
+    }
+    setDirty(false);
     setMessage(lockAfter ? "המערכת נשמרה ונעולה." : "נשמר.");
     setSaving(false);
+  }
+
+  async function finishEditing() {
+    if (dirty && !confirm("יש שינויים שלא נשמרו. לצאת בלי לשמור?")) return;
+    if (teacherId) {
+      try {
+        setGrid(await fetchScheduleForTeacher(teacherId));
+      } catch (e) {
+        setMessage("שגיאה בטעינה: " + (e instanceof Error ? e.message : String(e)));
+      }
+    }
+    setDirty(false);
+    setEditing(false);
   }
 
   if (loading) return <p className="text-muted-foreground">טוען...</p>;
@@ -78,11 +102,28 @@ function SchedulePage() {
           <p className="text-sm text-muted-foreground">
             {locked
               ? "המערכת שלך נעולה. לעדכון פני למנהלת."
-              : "מלאי את המערכת השבועית. לאחר שמירה סופית לא תוכלי לערוך יותר."}
+              : editing
+                ? "מלאי את המערכת השבועית. לאחר שמירה סופית לא תוכלי לערוך יותר."
+                : "המערכת פתוחה לעריכה. לאחר שמירה סופית היא תינעל."}
           </p>
         </div>
-        {!locked && (
+        {!locked && !editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            עריכת המערכת
+          </button>
+        )}
+        {!locked && editing && (
           <div className="flex gap-2">
+            <button
+              onClick={finishEditing}
+              disabled={saving}
+              className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary disabled:opacity-60"
+            >
+              סיום עריכה
+            </button>
             <button
               onClick={() => saveAll(false)}
               disabled={saving}
@@ -101,7 +142,11 @@ function SchedulePage() {
         )}
       </div>
       {message && <div className="rounded-md bg-accent px-3 py-2 text-sm">{message}</div>}
-      <ScheduleEditor grid={grid} readOnly={locked} onUpdateSlot={updateSlot} />
+      {editing ? (
+        <ScheduleEditor grid={grid} onUpdateSlot={updateSlot} />
+      ) : (
+        <ScheduleView grid={grid} />
+      )}
     </div>
   );
 }
