@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Download, Search, X } from "lucide-react";
+import { ChevronDown, ChevronsDown, ChevronsUp, Download, Search, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { requireAdmin } from "@/lib/auth-guards";
 import { downloadXlsx, todayStamp } from "@/lib/export-xlsx";
@@ -77,6 +77,7 @@ function AdminHistory() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | RequestStatus>("all");
   const [monthFilter, setMonthFilter] = useState("all");
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     (async () => {
@@ -114,6 +115,26 @@ function AdminHistory() {
     const last = groups[groups.length - 1];
     if (last && last.month === month) last.rows.push(row);
     else groups.push({ month, rows: [row] });
+  }
+
+  function toggleRow(id: string) {
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }
+
+  // Open all / close all only touch the requests currently shown.
+  function setAllVisible(open: boolean) {
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      for (const r of visible) {
+        if (open) next.add(r.id);
+        else next.delete(r.id);
+      }
+      return next;
+    });
   }
 
   // One spreadsheet row per lesson, so it can be filtered and totalled in Excel.
@@ -211,6 +232,26 @@ function AdminHistory() {
                 ? `${rows.length} בקשות`
                 : `מוצגות ${visible.length} מתוך ${rows.length}`}
             </span>
+            {visible.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setAllVisible(true)}
+                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm hover:bg-secondary"
+                >
+                  <ChevronsDown className="h-4 w-4" />
+                  פתחי הכול
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllVisible(false)}
+                  className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm hover:bg-secondary"
+                >
+                  <ChevronsUp className="h-4 w-4" />
+                  סגרי הכול
+                </button>
+              </div>
+            )}
           </div>
 
           {visible.length === 0 ? (
@@ -236,7 +277,12 @@ function AdminHistory() {
                     {monthLabel(group.month)} · {group.rows.length} בקשות
                   </h2>
                   {group.rows.map((r) => (
-                    <RequestCard key={r.id} row={r} />
+                    <RequestCard
+                      key={r.id}
+                      row={r}
+                      open={openIds.has(r.id)}
+                      onToggle={() => toggleRow(r.id)}
+                    />
                   ))}
                 </section>
               ))}
@@ -248,60 +294,73 @@ function AdminHistory() {
   );
 }
 
-function RequestCard({ row }: { row: Row }) {
+function RequestCard({ row, open, onToggle }: { row: Row; open: boolean; onToggle: () => void }) {
   const status = requestStatus(row);
   const lessons = [...row.absence_lessons].sort((a, b) => a.lesson_number - b.lesson_number);
   return (
     <div className="rounded-lg border bg-card">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-        <div>
-          <div className="font-semibold">{row.teachers?.full_name}</div>
-          <div className="text-sm text-muted-foreground">
-            {dayLabel(row.absence_date)}
-            {row.decided_at
-              ? ` · הוחלט ב-${new Date(row.decided_at).toLocaleDateString("he-IL")}`
-              : ""}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-right hover:bg-secondary/50"
+      >
+        <div className="flex items-center gap-2">
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+          />
+          <div>
+            <div className="font-semibold">{row.teachers?.full_name}</div>
+            <div className="text-sm text-muted-foreground">
+              {dayLabel(row.absence_date)} ·{" "}
+              {lessons.length === 1 ? "שיעור אחד" : `${lessons.length} שיעורים`}
+              {row.decided_at
+                ? ` · הוחלט ב-${new Date(row.decided_at).toLocaleDateString("he-IL")}`
+                : ""}
+            </div>
           </div>
         </div>
         <span className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLE[status]}`}>
           {STATUS_LABEL[status]}
         </span>
-      </div>
-      <table className="w-full text-sm">
-        <thead className="text-right text-xs text-muted-foreground">
-          <tr>
-            <th className="px-4 py-1.5 font-medium">שיעור</th>
-            <th className="py-1.5 font-medium">מקצוע וכיתה</th>
-            <th className="py-1.5 font-medium">ממלאת מקום</th>
-            <th className="px-4 py-1.5 font-medium">החלטה</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lessons.map((l) => (
-            <tr key={l.lesson_number} className="border-t align-top">
-              <td className="px-4 py-2">{l.lesson_number}</td>
-              <td className="py-2">
-                {[l.subject, formatClassLabel(l.grade_level ?? "", l.class_name ?? "")]
-                  .filter(Boolean)
-                  .join(" · ") || "—"}
-              </td>
-              <td className="py-2">{l.teachers?.full_name ?? "—"}</td>
-              <td className="px-4 py-2">
-                {row.status !== "pending" && (
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLE[l.status]}`}
-                  >
-                    {STATUS_LABEL[l.status]}
-                  </span>
-                )}
-                {l.status === "rejected" && l.admin_note && (
-                  <div className="mt-1 text-xs text-muted-foreground">סיבה: {l.admin_note}</div>
-                )}
-              </td>
+      </button>
+      {open && (
+        <table className="w-full border-t text-sm">
+          <thead className="text-right text-xs text-muted-foreground">
+            <tr>
+              <th className="px-4 py-1.5 font-medium">שיעור</th>
+              <th className="py-1.5 font-medium">מקצוע וכיתה</th>
+              <th className="py-1.5 font-medium">ממלאת מקום</th>
+              <th className="px-4 py-1.5 font-medium">החלטה</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {lessons.map((l) => (
+              <tr key={l.lesson_number} className="border-t align-top">
+                <td className="px-4 py-2">{l.lesson_number}</td>
+                <td className="py-2">
+                  {[l.subject, formatClassLabel(l.grade_level ?? "", l.class_name ?? "")]
+                    .filter(Boolean)
+                    .join(" · ") || "—"}
+                </td>
+                <td className="py-2">{l.teachers?.full_name ?? "—"}</td>
+                <td className="px-4 py-2">
+                  {row.status !== "pending" && (
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLE[l.status]}`}
+                    >
+                      {STATUS_LABEL[l.status]}
+                    </span>
+                  )}
+                  {l.status === "rejected" && l.admin_note && (
+                    <div className="mt-1 text-xs text-muted-foreground">סיבה: {l.admin_note}</div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
