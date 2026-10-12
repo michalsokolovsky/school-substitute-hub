@@ -106,7 +106,8 @@ function AdminWorkload() {
 
   const totalApproved = summary.reduce((sum, s) => sum + s.approved, 0);
   const totalPending = summary.reduce((sum, s) => sum + s.pending, 0);
-  const maxApproved = Math.max(1, ...summary.map((s) => s.approved));
+  // Equal counts share a place, so two substitutes with 5 lessons are both number 2.
+  const placeOf = (approved: number) => 1 + summary.filter((s) => s.approved > approved).length;
 
   function exportToExcel() {
     downloadXlsx(
@@ -166,40 +167,47 @@ function AdminWorkload() {
           <table className="w-full text-sm">
             <thead className="bg-secondary text-right">
               <tr>
+                <th className="w-12 p-2">מקום</th>
                 <th className="p-2">ממלאת מקום</th>
                 <th className="p-2">סוג</th>
                 <th className="p-2">שיעורים שאושרו</th>
-                <th className="w-1/3 p-2" aria-hidden="true"></th>
                 <th className="p-2">ימים</th>
                 <th className="p-2">ממתינים לאישור</th>
               </tr>
             </thead>
             <tbody>
-              {summary.map((s) => (
-                <tr key={s.name} className="border-t">
-                  <td className="p-2 font-medium">{s.name}</td>
-                  <td className="p-2">{s.type === "external" ? "חיצונית" : "פנימית"}</td>
-                  <td className="p-2 font-medium">{s.approved}</td>
-                  <td className="p-2">
-                    <div className="h-2 rounded-full bg-secondary" aria-hidden="true">
-                      <div
-                        className="h-2 rounded-full bg-primary"
-                        style={{ width: `${(s.approved / maxApproved) * 100}%` }}
-                      />
-                    </div>
-                  </td>
-                  <td className="p-2">{s.days.size}</td>
-                  <td className="p-2 text-muted-foreground">{s.pending || "—"}</td>
-                </tr>
-              ))}
+              {summary.map((s) => {
+                const place = s.approved > 0 ? placeOf(s.approved) : null;
+                return (
+                  <tr key={s.name} className="border-t">
+                    <td className="p-2">
+                      {place && (
+                        <span
+                          className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
+                            place === 1
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-secondary text-muted-foreground"
+                          }`}
+                        >
+                          {place}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-2 font-medium">{s.name}</td>
+                    <td className="p-2">{s.type === "external" ? "חיצונית" : "פנימית"}</td>
+                    <td className="p-2 font-medium">{s.approved}</td>
+                    <td className="p-2">{s.days.size}</td>
+                    <td className="p-2 text-muted-foreground">{s.pending || "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot className="border-t bg-secondary/50 font-medium">
               <tr>
-                <td className="p-2" colSpan={2}>
+                <td className="p-2" colSpan={3}>
                   סך הכול
                 </td>
                 <td className="p-2">{totalApproved}</td>
-                <td className="p-2"></td>
                 <td className="p-2"></td>
                 <td className="p-2">{totalPending || "—"}</td>
               </tr>
