@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           ability_group: string | null
           admin_note: string | null
+          absence_date: string
           absence_request_id: string
           class_name: string | null
           created_at: string
@@ -27,10 +28,12 @@ export type Database = {
           status: Database["public"]["Enums"]["absence_status"]
           subject: string | null
           substitute_teacher_id: string | null
+          teacher_id: string
         }
         Insert: {
           ability_group?: string | null
           admin_note?: string | null
+          absence_date?: string
           absence_request_id: string
           class_name?: string | null
           created_at?: string
@@ -40,10 +43,12 @@ export type Database = {
           status?: Database["public"]["Enums"]["absence_status"]
           subject?: string | null
           substitute_teacher_id?: string | null
+          teacher_id?: string
         }
         Update: {
           ability_group?: string | null
           admin_note?: string | null
+          absence_date?: string
           absence_request_id?: string
           class_name?: string | null
           created_at?: string
@@ -53,6 +58,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["absence_status"]
           subject?: string | null
           substitute_teacher_id?: string | null
+          teacher_id?: string
         }
         Relationships: [
           {

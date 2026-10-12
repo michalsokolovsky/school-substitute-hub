@@ -264,7 +264,14 @@ function AbsencePage() {
       .select();
     if (lessErr || !insertedLessons) {
       await rollbackRequest(req.id);
-      setMessage("שגיאה: " + (lessErr?.message ?? ""));
+      if (lessErr?.code === "23505") {
+        // Another request took one of these lessons in the meantime.
+        setRequestedLessons(await fetchRequestedLessons(teacherId, absenceDate));
+        setStep("pick");
+        setMessage("אחד השיעורים שבחרת כבר הוגש בבקשה אחרת. הרשימה רועננה, בחרי מחדש.");
+      } else {
+        setMessage("שגיאה: " + (lessErr?.message ?? ""));
+      }
       setSending(false);
       return;
     }
