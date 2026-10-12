@@ -2,8 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ScheduleEditor } from "@/components/schedule-editor";
+import { ScheduleView } from "@/components/schedule-view";
 import { requireAdmin } from "@/lib/auth-guards";
-import { fetchScheduleForTeacher, saveScheduleForTeacher, buildEmptyGrid, emptyScheduleSlot, type ScheduleSlot } from "@/lib/schedule";
+import { fetchScheduleForTeacher, saveScheduleForTeacher, buildEmptyGrid, emptyScheduleSlot, isScheduleEmpty, type ScheduleSlot } from "@/lib/schedule";
 
 export const Route = createFileRoute("/_authenticated/admin/teachers/$teacherId/schedule")({
   beforeLoad: () => requireAdmin(),
@@ -18,6 +19,8 @@ function AdminTeacherSchedulePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -34,7 +37,10 @@ function AdminTeacherSchedulePage() {
       setTeacherName(teacher.full_name);
       setScheduleLocked(teacher.schedule_locked);
       try {
-        setGrid(await fetchScheduleForTeacher(teacherId));
+        const loaded = await fetchScheduleForTeacher(teacherId);
+        setGrid(loaded);
+        // A schedule nobody filled in yet opens straight in the editor.
+        setEditing(isScheduleEmpty(loaded));
       } catch (e) {
         setMessage("שגיאה בטעינה: " + (e instanceof Error ? e.message : String(e)));
       }
@@ -43,6 +49,7 @@ function AdminTeacherSchedulePage() {
   }, [teacherId]);
 
   function updateSlot(key: string, patch: Partial<ScheduleSlot>) {
+    setDirty(true);
     setGrid((g) => ({
       ...g,
       [key]: { ...(g[key] ?? emptyScheduleSlot()), ...patch },
@@ -57,9 +64,21 @@ function AdminTeacherSchedulePage() {
       setMessage("שגיאה בשמירה: " + result.error);
     } else {
       if (lockAfter) setScheduleLocked(true);
+      setDirty(false);
       setMessage(lockAfter ? "המערכת נשמרה ונעולה." : "נשמר.");
     }
     setSaving(false);
+  }
+
+  async function finishEditing() {
+    if (dirty && !confirm("יש שינויים שלא נשמרו. לצאת בלי לשמור?")) return;
+    try {
+      setGrid(await fetchScheduleForTeacher(teacherId));
+    } catch (e) {
+      setMessage("שגיאה בטעינה: " + (e instanceof Error ? e.message : String(e)));
+    }
+    setDirty(false);
+    setEditing(false);
   }
 
   async function unlockForTeacher() {
@@ -94,20 +113,38 @@ function AdminTeacherSchedulePage() {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <button
-            onClick={() => save(false)}
-            disabled={saving}
-            className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary disabled:opacity-60"
-          >
-            שמירה
-          </button>
-          <button
-            onClick={() => save(true)}
-            disabled={saving}
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-          >
-            שמירה ונעילה
-          </button>
+          {editing ? (
+            <>
+              <button
+                onClick={finishEditing}
+                disabled={saving}
+                className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary disabled:opacity-60"
+              >
+                סיום עריכה
+              </button>
+              <button
+                onClick={() => save(false)}
+                disabled={saving}
+                className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary disabled:opacity-60"
+              >
+                שמירה
+              </button>
+              <button
+                onClick={() => save(true)}
+                disabled={saving}
+                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              >
+                שמירה ונעילה
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setEditing(true)}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+            >
+              עריכת המערכת
+            </button>
+          )}
           {scheduleLocked && (
             <button
               onClick={unlockForTeacher}
@@ -119,7 +156,11 @@ function AdminTeacherSchedulePage() {
         </div>
       </div>
       {message && <div className="rounded-md bg-accent px-3 py-2 text-sm">{message}</div>}
-      <ScheduleEditor grid={grid} onUpdateSlot={updateSlot} />
+      {editing ? (
+        <ScheduleEditor grid={grid} onUpdateSlot={updateSlot} />
+      ) : (
+        <ScheduleView grid={grid} />
+      )}
     </div>
   );
 }
