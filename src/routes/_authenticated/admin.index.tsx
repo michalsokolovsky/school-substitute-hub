@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyTeacherDecision } from "@/lib/email.functions";
-import { claimAdminIfNone, decideAbsenceRequest } from "@/lib/admin.functions";
+import { decideAbsenceRequest } from "@/lib/admin.functions";
 import { requireAdmin } from "@/lib/auth-guards";
 import { notifyPendingChanged } from "@/lib/pending-requests";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
-  beforeLoad: () => requireAdmin({ allowBootstrap: true }),
+  beforeLoad: () => requireAdmin(),
   component: AdminDashboard,
 });
 
@@ -32,7 +32,6 @@ type PendingRow = {
 type LessonDecision = { approved: boolean; reason: string };
 
 function AdminDashboard() {
-  const { bootstrap } = Route.useRouteContext();
   const [rows, setRows] = useState<PendingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [decisions, setDecisions] = useState<Record<string, LessonDecision>>({});
@@ -40,7 +39,6 @@ function AdminDashboard() {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const notifyFn = useServerFn(notifyTeacherDecision);
-  const claimFn = useServerFn(claimAdminIfNone);
   const decideFn = useServerFn(decideAbsenceRequest);
 
   async function load() {
@@ -57,17 +55,8 @@ function AdminDashboard() {
   }
 
   useEffect(() => {
-    (async () => {
-      if (bootstrap) {
-        try {
-          await claimFn();
-        } catch {
-          return;
-        }
-      }
-      load();
-    })();
-  }, [bootstrap]);
+    load();
+  }, []);
 
   function setDecision(lessonId: string, patch: Partial<LessonDecision> & { approved: boolean }) {
     setDecisions((d) => ({
