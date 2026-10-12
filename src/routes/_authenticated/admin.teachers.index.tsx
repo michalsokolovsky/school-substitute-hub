@@ -2,7 +2,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import * as XLSX from "xlsx";
-import { EllipsisVertical, ShieldCheck, TriangleAlert, Upload, UserPlus } from "lucide-react";
+import {
+  EllipsisVertical,
+  Search,
+  ShieldCheck,
+  TriangleAlert,
+  Upload,
+  UserPlus,
+  X,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -113,6 +121,10 @@ function AdminTeachers() {
   const deleteFn = useServerFn(deleteTeacher);
   const [admins, setAdmins] = useState<AdminRow[]>([]);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "no_account" | "locked" | "open" | "external">(
+    "all",
+  );
 
   async function load() {
     const { data } = await supabase.from("teachers").select("*").order("full_name");
@@ -134,6 +146,22 @@ function AdminTeachers() {
   }, []);
 
   const adminUserIds = new Set(admins.map((a) => a.user_id));
+
+  const digitsOnly = (value: string) => value.replace(/\D/g, "");
+  const needle = query.trim().toLowerCase();
+  const visibleTeachers = teachers.filter((t) => {
+    if (filter === "no_account" && t.user_id) return false;
+    if (filter === "locked" && !t.schedule_locked) return false;
+    if (filter === "open" && t.schedule_locked) return false;
+    if (filter === "external" && t.type !== "external") return false;
+    if (!needle) return true;
+    const phoneDigits = digitsOnly(needle);
+    return (
+      t.full_name.toLowerCase().includes(needle) ||
+      t.email.toLowerCase().includes(needle) ||
+      (phoneDigits !== "" && digitsOnly(t.phone ?? "").includes(phoneDigits))
+    );
+  });
 
   async function onRevokeAdmin(userId: string, label: string) {
     if (!confirm(`להסיר את הרשאת המנהלת מ-${label}?`)) return;
@@ -368,6 +396,47 @@ function AdminTeachers() {
         <div className="rounded-md bg-accent px-3 py-2 text-sm">{actionMessage}</div>
       )}
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[220px] flex-1">
+          <Search className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="חיפוש לפי שם, אימייל או טלפון"
+            aria-label="חיפוש מורה"
+            className="w-full rounded-md border bg-background py-1.5 pl-8 pr-9 text-sm"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="ניקוי החיפוש"
+              className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value as typeof filter)}
+          aria-label="סינון מורות"
+          className="rounded-md border bg-background px-2 py-1.5 text-sm"
+        >
+          <option value="all">כל המורות</option>
+          <option value="no_account">עדיין לא נרשמו</option>
+          <option value="locked">מערכת נעולה</option>
+          <option value="open">מערכת פתוחה</option>
+          <option value="external">חיצוניות</option>
+        </select>
+        <span className="text-xs text-muted-foreground">
+          {visibleTeachers.length === teachers.length
+            ? `${teachers.length} מורות`
+            : `מוצגות ${visibleTeachers.length} מתוך ${teachers.length}`}
+        </span>
+      </div>
+
       <div className="rounded-lg border bg-card">
         <table className="w-full text-sm">
           <thead className="bg-secondary text-right">
@@ -382,7 +451,7 @@ function AdminTeachers() {
             </tr>
           </thead>
           <tbody>
-            {teachers.map((t) => (
+            {visibleTeachers.map((t) => (
               <tr key={t.id} className="border-t">
                 <td className="p-2 font-medium">{t.full_name}</td>
                 <td className="p-2">{t.email}</td>
@@ -427,6 +496,23 @@ function AdminTeachers() {
               <tr>
                 <td colSpan={7} className="p-4 text-center text-muted-foreground">
                   אין מורות עדיין. הוסיפי מורה או ייבאי מאקסל.
+                </td>
+              </tr>
+            )}
+            {teachers.length > 0 && visibleTeachers.length === 0 && (
+              <tr>
+                <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                  לא נמצאו מורות שמתאימות לחיפוש.{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuery("");
+                      setFilter("all");
+                    }}
+                    className="underline hover:text-foreground"
+                  >
+                    ניקוי החיפוש
+                  </button>
                 </td>
               </tr>
             )}
