@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect, Link, useRouter } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
+import { PENDING_CHANGED_EVENT } from "@/lib/pending-requests";
 import { LogOut, Calendar, CalendarX, ListChecks, LayoutDashboard, Users, History } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -18,6 +19,7 @@ function AuthLayout() {
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState(false);
   const [teacherName, setTeacherName] = useState<string>("");
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -29,6 +31,28 @@ function AuthLayout() {
       setTeacherName(teacher?.full_name ?? user.email ?? "");
     })();
   }, [user.id, user.email]);
+
+  // Admins see how many requests are waiting for a decision next to "לוח בקרה". Refreshed every
+  // minute, when the tab regains focus, and right after the dashboard decides on a request.
+  useEffect(() => {
+    if (!isAdmin) return;
+    async function loadPending() {
+      const { count } = await supabase
+        .from("absence_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      setPendingCount(count ?? 0);
+    }
+    loadPending();
+    const timer = setInterval(loadPending, 60_000);
+    window.addEventListener("focus", loadPending);
+    window.addEventListener(PENDING_CHANGED_EVENT, loadPending);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", loadPending);
+      window.removeEventListener(PENDING_CHANGED_EVENT, loadPending);
+    };
+  }, [isAdmin]);
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -43,7 +67,13 @@ function AuthLayout() {
             <nav className="flex items-center gap-1 text-sm">
               {isAdmin ? (
                 <>
-                  <NavLink to="/admin" icon={<LayoutDashboard className="h-4 w-4" />}>לוח בקרה</NavLink>
+                  <NavLink
+                    to="/admin"
+                    icon={<LayoutDashboard className="h-4 w-4" />}
+                    badge={pendingCount}
+                  >
+                    לוח בקרה
+                  </NavLink>
                   <NavLink to="/admin/teachers" icon={<Users className="h-4 w-4" />}>מורות</NavLink>
                   <NavLink to="/admin/history" icon={<History className="h-4 w-4" />}>היסטוריה</NavLink>
                 </>
@@ -75,7 +105,17 @@ function AuthLayout() {
   );
 }
 
-function NavLink({ to, icon, children }: { to: string; icon: React.ReactNode; children: React.ReactNode }) {
+function NavLink({
+  to,
+  icon,
+  badge,
+  children,
+}: {
+  to: string;
+  icon: React.ReactNode;
+  badge?: number;
+  children: React.ReactNode;
+}) {
   return (
     <Link
       to={to}
@@ -84,6 +124,14 @@ function NavLink({ to, icon, children }: { to: string; icon: React.ReactNode; ch
     >
       {icon}
       {children}
+      {badge ? (
+        <span
+          className="inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-xs font-medium leading-5 text-destructive-foreground"
+          aria-label={`${badge} בקשות ממתינות`}
+        >
+          {badge}
+        </span>
+      ) : null}
     </Link>
   );
 }
