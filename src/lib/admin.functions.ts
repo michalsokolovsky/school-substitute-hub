@@ -137,24 +137,6 @@ export const grantAdmin = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// Bootstrap: allow the currently signed-in user to claim admin if no admin exists yet.
-// Only works when there are zero admin rows.
-export const claimAdminIfNone = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data: admins } = await context.supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "admin")
-      .limit(1);
-    if (admins && admins.length > 0) return { claimed: false, reason: "admin_exists" };
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin
-      .from("user_roles")
-      .upsert({ user_id: context.userId, role: "admin" }, { onConflict: "user_id,role" });
-    return { claimed: true };
-  });
-
 async function getAdminClient() {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

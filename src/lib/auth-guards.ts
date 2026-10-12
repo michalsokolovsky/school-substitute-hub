@@ -15,23 +15,11 @@ export async function userIsAdmin(userId: string) {
   return !!roles?.some((r) => r.role === "admin");
 }
 
-export async function anyAdminExists() {
-  const { count } = await supabase
-    .from("user_roles")
-    .select("*", { count: "exact", head: true })
-    .eq("role", "admin");
-  return (count ?? 0) > 0;
-}
-
-/** Redirect non-admins. When allowBootstrap is true, permits access if no admin exists yet. */
-export async function requireAdmin(options?: { allowBootstrap?: boolean }) {
+/** Redirect non-admins. */
+export async function requireAdmin() {
   const user = await getAuthUser();
   const isAdmin = await userIsAdmin(user.id);
-  if (isAdmin) return { user, isAdmin: true as const, bootstrap: false as const };
-
-  if (options?.allowBootstrap && !(await anyAdminExists())) {
-    return { user, isAdmin: false as const, bootstrap: true as const };
-  }
+  if (isAdmin) return { user, isAdmin: true as const };
 
   throw redirect({ to: "/" });
 }
