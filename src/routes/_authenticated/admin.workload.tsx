@@ -111,7 +111,7 @@ function AdminWorkload() {
   function exportToExcel() {
     downloadXlsx(
       `workload-${month}.xlsx`,
-      "עומס ממלאות",
+      "דוח מילויי מקום",
       summary.map((s) => ({
         "ממלאת מקום": s.name,
         סוג: s.type === "external" ? "חיצונית" : "פנימית",
@@ -126,7 +126,7 @@ function AdminWorkload() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">עומס ממלאות</h1>
+          <h1 className="text-2xl font-bold">דוח מילויי מקום</h1>
           <p className="text-sm text-muted-foreground">
             כמה שיעורי מילוי כל ממלאת עשתה ב{monthLabel(month)}, לפי תאריך ההיעדרות.
           </p>

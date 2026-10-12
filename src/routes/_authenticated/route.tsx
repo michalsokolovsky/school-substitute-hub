@@ -76,7 +76,7 @@ function AuthLayout() {
                   </NavLink>
                   <NavLink to="/admin/teachers" icon={<Users className="h-4 w-4" />}>מורות</NavLink>
                   <NavLink to="/admin/history" icon={<History className="h-4 w-4" />}>היסטוריה</NavLink>
-                  <NavLink to="/admin/workload" icon={<ChartColumn className="h-4 w-4" />}>עומס ממלאות</NavLink>
+                  <NavLink to="/admin/workload" icon={<ChartColumn className="h-4 w-4" />}>דוח מילויי מקום</NavLink>
                 </>
               ) : (
                 <>
