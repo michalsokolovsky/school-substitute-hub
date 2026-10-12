@@ -7,7 +7,16 @@
 - TanStack Start + React 19, Vite 8, Tailwind 4 + shadcn, TypeScript.
 - Supabase: מסד נתונים, התחברות והרשאות (RLS). פרויקט `tnylpzwmsoqvcevdizpa`.
 - Resend לשליחת מיילים, דרך ה-API בקובץ `src/lib/email.functions.ts`.
-- build לפרודקשן: nitro עם יעד Cloudflare. הפרויקט כבר לא תלוי ב-Lovable.
+- build לפרודקשן: nitro. ב-Vercel הוא מזהה את הסביבה ובונה בפורמט של Vercel (ברירת המחדל ב-`vite.config.ts` היא Cloudflare, ולא בשימוש). הפרויקט כבר לא תלוי ב-Lovable.
+
+## פריסה
+- האתר רץ על **Vercel** (צוות `school-subititute-hub`), מחובר לריפו `michalsokolovsky/school-substitute-hub`. Production Branch: `main`.
+- מיזוג PR ל-`main` מפעיל build ופריסה לפרודקשן אוטומטית. ענף אחר או PR נפרסים כ-Preview בלבד. אין GitHub Actions ואין קובץ הגדרות פריסה בריפו.
+- אחרי מיזוג: לבדוק ב-Vercel ← Deployments שהופיעה פריסה **Production** בסטטוס Ready. הפריסה לוקחת כחצי דקה.
+- הפריסה לא מריצה מיגרציות. קבצים ב-`supabase/migrations/` מורצים ידנית ב-SQL Editor של Supabase, ולפני שהקוד שתלוי בהם עולה.
+- משתנה סביבה חדש בקוד: להוסיף ב-Vercel ← Settings ← Environment Variables (לסביבת Production), ואז Redeploy.
+- אם פריסה נכשלת עם `Git information retrieval failed`: ה-build לא התחיל, והבעיה בחיבור Vercel↔GitHub ולא בקוד. לחבר מחדש ב-Vercel ← Settings ← Git (Disconnect ואז Connect), ואז Redeploy. אם זה חוזר, לבדוק חברות בצוות ב-Settings ← Members. הקומיטים שנוצרים במיזוג דרך אתר גיטהאב נרשמים עם מחבר שונה מקומיטים מקומיים, וזה חשד אפשרי לגורם (לא אומת).
+- כשל build אמיתי: ללוג ב-Deployment ← Build Logs. אפשר לשחזר מקומית עם `npm run build`.
 
 ## פקודות (מתוך התיקייה הפנימית `school-substitute-hub`)
 - `npm run dev` — שרת פיתוח ב-`http://localhost:8080`
