@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, redirect, Link, useRouter } from "@tanstack/re
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { PENDING_CHANGED_EVENT } from "@/lib/pending-requests";
-import { LogOut, Calendar, CalendarX, ListChecks, LayoutDashboard, Users, History } from "lucide-react";
+import { LogOut, Calendar, CalendarX, ListChecks, LayoutDashboard, Users, History, ChartColumn } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -76,6 +76,7 @@ function AuthLayout() {
                   </NavLink>
                   <NavLink to="/admin/teachers" icon={<Users className="h-4 w-4" />}>מורות</NavLink>
                   <NavLink to="/admin/history" icon={<History className="h-4 w-4" />}>היסטוריה</NavLink>
+                  <NavLink to="/admin/workload" icon={<ChartColumn className="h-4 w-4" />}>עומס ממלאות</NavLink>
                 </>
               ) : (
                 <>
