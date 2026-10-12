@@ -56,16 +56,16 @@ function AdminTeacherSchedulePage() {
     }));
   }
 
-  async function save(lockAfter: boolean) {
+  async function save() {
     setSaving(true);
     setMessage(null);
-    const result = await saveScheduleForTeacher(teacherId, grid, { lockAfter });
+    const result = await saveScheduleForTeacher(teacherId, grid);
     if (result.error) {
       setMessage("שגיאה בשמירה: " + result.error);
     } else {
-      if (lockAfter) setScheduleLocked(true);
       setDirty(false);
-      setMessage(lockAfter ? "המערכת נשמרה ונעולה." : "נשמר.");
+      setEditing(false);
+      setMessage("נשמר.");
     }
     setSaving(false);
   }
@@ -81,18 +81,22 @@ function AdminTeacherSchedulePage() {
     setEditing(false);
   }
 
-  async function unlockForTeacher() {
-    if (!confirm("לפתוח את המערכת של המורה לעריכה על ידה?")) return;
+  async function toggleLock() {
+    const lock = !scheduleLocked;
+    const question = lock
+      ? "לסגור את המערכת של המורה לעריכה? היא לא תוכל לשנות אותה."
+      : "לפתוח את המערכת של המורה לעריכה על ידה?";
+    if (!confirm(question)) return;
     const { error } = await supabase
       .from("teachers")
-      .update({ schedule_locked: false })
+      .update({ schedule_locked: lock })
       .eq("id", teacherId);
     if (error) {
       setMessage("שגיאה: " + error.message);
       return;
     }
-    setScheduleLocked(false);
-    setMessage("המערכת נפתחה לעריכה על ידי המורה.");
+    setScheduleLocked(lock);
+    setMessage(lock ? "המערכת נסגרה למורה." : "המערכת נפתחה לעריכה על ידי המורה.");
   }
 
   if (loading) return <p className="text-muted-foreground">טוען...</p>;
@@ -120,38 +124,31 @@ function AdminTeacherSchedulePage() {
                 disabled={saving}
                 className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary disabled:opacity-60"
               >
-                סיום עריכה
+                ביטול
               </button>
               <button
-                onClick={() => save(false)}
-                disabled={saving}
-                className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary disabled:opacity-60"
-              >
-                שמירה
-              </button>
-              <button
-                onClick={() => save(true)}
+                onClick={() => save()}
                 disabled={saving}
                 className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
               >
-                שמירה ונעילה
+                שמירה
               </button>
             </>
           ) : (
-            <button
-              onClick={() => setEditing(true)}
-              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
-            >
-              עריכת המערכת
-            </button>
-          )}
-          {scheduleLocked && (
-            <button
-              onClick={unlockForTeacher}
-              className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary"
-            >
-              פתיחה למורה
-            </button>
+            <>
+              <button
+                onClick={toggleLock}
+                className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary"
+              >
+                {scheduleLocked ? "פתיחה למורה" : "סגירה למורה"}
+              </button>
+              <button
+                onClick={() => setEditing(true)}
+                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
+              >
+                עריכת המערכת
+              </button>
+            </>
           )}
         </div>
       </div>
