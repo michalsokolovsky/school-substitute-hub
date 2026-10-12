@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import * as XLSX from "xlsx";
 import {
+  Download,
   EllipsisVertical,
   Search,
   ShieldCheck,
@@ -12,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { downloadXlsx, todayStamp } from "@/lib/export-xlsx";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -195,6 +197,23 @@ function AdminTeachers() {
     }
   }
 
+  // Same column names as the import, so the file can be edited and imported back.
+  function exportTeachers() {
+    downloadXlsx(
+      `teachers-${todayStamp()}.xlsx`,
+      "מורות",
+      visibleTeachers.map((t) => ({
+        "שם מלא": t.full_name,
+        אימייל: t.email,
+        טלפון: t.phone ?? "",
+        סוג: t.type === "external" ? "חיצונית" : "פנימית",
+        הרשאה:
+          t.user_id && adminUserIds.has(t.user_id) ? "מנהלת" : t.user_id ? "מורה" : "אין חשבון",
+        מערכת: t.schedule_locked ? "נעולה" : "פתוחה",
+      })),
+    );
+  }
+
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -344,6 +363,14 @@ function AdminTeachers() {
               >
                 <Upload className="ml-2 h-4 w-4" />
                 {importing ? "מייבא..." : "ייבוא מורות מאקסל"}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={visibleTeachers.length === 0}
+                onSelect={exportTeachers}
+                title="מייצא את המורות המוצגות עכשיו בטבלה (לפי החיפוש והסינון). אפשר לייבא את הקובץ בחזרה."
+              >
+                <Download className="ml-2 h-4 w-4" />
+                ייצוא הרשימה לאקסל
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAdminsOpen(true)}>
                 <ShieldCheck className="ml-2 h-4 w-4" />
