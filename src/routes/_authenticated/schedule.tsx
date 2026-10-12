@@ -64,10 +64,8 @@ function SchedulePage() {
       setSaving(false);
       return;
     }
-    if (lockAfter) {
-      setLocked(true);
-      setEditing(false);
-    }
+    if (lockAfter) setLocked(true);
+    setEditing(false);
     setDirty(false);
     setMessage(lockAfter ? "המערכת נשמרה ונעולה." : "נשמר.");
     setSaving(false);
@@ -122,14 +120,14 @@ function SchedulePage() {
               disabled={saving}
               className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary disabled:opacity-60"
             >
-              סיום עריכה
+              ביטול
             </button>
             <button
               onClick={() => saveAll(false)}
               disabled={saving}
               className="rounded-md border px-3 py-1.5 text-sm hover:bg-secondary disabled:opacity-60"
             >
-              שמירת טיוטה
+              שמירה
             </button>
             <button
               onClick={() => saveAll(true)}
