@@ -1,7 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Download } from "lucide-react";
 import { requireAdmin } from "@/lib/auth-guards";
+import { downloadXlsx, todayStamp } from "@/lib/export-xlsx";
+import { formatClassLabel } from "@/lib/schedule";
 
 export const Route = createFileRoute("/_authenticated/admin/history")({
   beforeLoad: () => requireAdmin(),
@@ -20,6 +23,7 @@ type Row = {
     admin_note: string | null;
     subject: string | null;
     class_name: string | null;
+    grade_level: string | null;
     teachers: { full_name: string } | null;
   }[];
 };
@@ -39,7 +43,7 @@ function AdminHistory() {
       const { data } = await supabase
         .from("absence_requests")
         .select(
-          "id, absence_date, status, decided_at, teachers:teacher_id(full_name), absence_lessons(lesson_number, status, admin_note, subject, class_name, teachers:substitute_teacher_id(full_name))",
+          "id, absence_date, status, decided_at, teachers:teacher_id(full_name), absence_lessons(lesson_number, status, admin_note, subject, class_name, grade_level, teachers:substitute_teacher_id(full_name))",
         )
         .order("absence_date", { ascending: false });
       setRows((data as unknown as Row[]) ?? []);
@@ -47,10 +51,42 @@ function AdminHistory() {
     })();
   }, []);
 
+  // One spreadsheet row per lesson, so it can be filtered and totalled in Excel.
+  function exportToExcel() {
+    const data = rows.flatMap((r) =>
+      [...r.absence_lessons]
+        .sort((a, b) => a.lesson_number - b.lesson_number)
+        .map((l) => ({
+          תאריך: r.absence_date,
+          "מורה נעדרת": r.teachers?.full_name ?? "",
+          שיעור: l.lesson_number,
+          מקצוע: l.subject ?? "",
+          כיתה: formatClassLabel(l.grade_level ?? "", l.class_name ?? ""),
+          "ממלאת מקום": l.teachers?.full_name ?? "",
+          החלטה: STATUS_LABEL[l.status],
+          "סיבת הדחייה": l.status === "rejected" ? (l.admin_note ?? "") : "",
+          "תאריך החלטה": r.decided_at ? new Date(r.decided_at).toLocaleDateString("he-IL") : "",
+        })),
+    );
+    downloadXlsx(`history-${todayStamp()}.xlsx`, "היסטוריה", data);
+  }
+
   if (loading) return <p className="text-muted-foreground">טוען...</p>;
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">היסטוריית בקשות</h1>
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">היסטוריית בקשות</h1>
+        {rows.length > 0 && (
+          <button
+            type="button"
+            onClick={exportToExcel}
+            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-secondary"
+          >
+            <Download className="h-4 w-4" />
+            ייצוא לאקסל
+          </button>
+        )}
+      </div>
       {rows.length === 0 ? (
         <p className="text-muted-foreground">אין בקשות.</p>
       ) : (
