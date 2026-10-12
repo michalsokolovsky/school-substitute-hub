@@ -262,3 +262,104 @@ export const deleteTeacher = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+// Records the admin's decision on every lesson of a pending absence request. Each lesson is
+// approved or rejected on its own (a rejection needs a reason). Rejected lessons release their
+// substitute. The request itself is approved if at least one lesson was approved, otherwise rejected.
+export const decideAbsenceRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) =>
+    z
+      .object({
+        requestId: z.string().uuid(),
+        note: z.string().max(1000).optional(),
+        decisions: z
+          .array(
+            z.object({
+              lessonId: z.string().uuid(),
+              approved: z.boolean(),
+              reason: z.string().max(1000).optional(),
+            }),
+          )
+          .min(1),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context);
+    const supabaseAdmin = await getAdminClient();
+
+    const { data: request } = await supabaseAdmin
+      .from("absence_requests")
+      .select("id, status, absence_date, teacher_id")
+      .eq("id", data.requestId)
+      .maybeSingle();
+    if (!request) throw new Error("הבקשה לא נמצאה.");
+    if (request.status !== "pending") throw new Error("הבקשה כבר טופלה.");
+
+    const { data: lessons } = await supabaseAdmin
+      .from("absence_lessons")
+      .select("id, lesson_number")
+      .eq("absence_request_id", request.id);
+    const lessonNumbers = new Map((lessons ?? []).map((l) => [l.id, l.lesson_number]));
+    const decidedIds = new Set(data.decisions.map((d) => d.lessonId));
+    if (
+      decidedIds.size !== data.decisions.length ||
+      decidedIds.size !== lessonNumbers.size ||
+      data.decisions.some((d) => !lessonNumbers.has(d.lessonId))
+    ) {
+      throw new Error("יש להחליט על כל השיעורים בבקשה.");
+    }
+    if (data.decisions.some((d) => !d.approved && !d.reason?.trim())) {
+      throw new Error("יש לכתוב סיבה לכל שיעור שנדחה.");
+    }
+
+    for (const d of data.decisions) {
+      const { error } = await supabaseAdmin
+        .from("absence_lessons")
+        .update({
+          status: d.approved ? "approved" : "rejected",
+          admin_note: d.approved ? null : d.reason!.trim(),
+        })
+        .eq("id", d.lessonId);
+      if (error) throw new Error(error.message);
+    }
+
+    const rejectedIds = data.decisions.filter((d) => !d.approved).map((d) => d.lessonId);
+    if (rejectedIds.length > 0) {
+      const { error } = await supabaseAdmin
+        .from("substitute_assignments")
+        .delete()
+        .in("absence_lesson_id", rejectedIds);
+      if (error) throw new Error(error.message);
+    }
+
+    const anyApproved = data.decisions.some((d) => d.approved);
+    const { error: reqErr } = await supabaseAdmin
+      .from("absence_requests")
+      .update({
+        status: anyApproved ? "approved" : "rejected",
+        decided_at: new Date().toISOString(),
+        admin_note: data.note?.trim() || null,
+      })
+      .eq("id", request.id);
+    if (reqErr) throw new Error(reqErr.message);
+
+    const { data: teacher } = await supabaseAdmin
+      .from("teachers")
+      .select("email")
+      .eq("id", request.teacher_id)
+      .maybeSingle();
+
+    return {
+      teacherEmail: teacher?.email ?? null,
+      absenceDate: request.absence_date,
+      lessons: data.decisions
+        .map((d) => ({
+          lesson: lessonNumbers.get(d.lessonId)!,
+          approved: d.approved,
+          reason: d.approved ? undefined : d.reason!.trim(),
+        }))
+        .sort((a, b) => a.lesson - b.lesson),
+    };
+  });

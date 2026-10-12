@@ -12,7 +12,13 @@ type Row = {
   status: "pending" | "approved" | "rejected";
   admin_note: string | null;
   decided_at: string | null;
-  absence_lessons: { lesson_number: number; substitute_teacher_id: string | null; teachers?: { full_name: string } | null }[];
+  absence_lessons: {
+    lesson_number: number;
+    status: "pending" | "approved" | "rejected";
+    admin_note: string | null;
+    substitute_teacher_id: string | null;
+    teachers?: { full_name: string } | null;
+  }[];
 };
 
 const STATUS: Record<string, { label: string; className: string }> = {
@@ -41,7 +47,7 @@ function MyRequestsPage() {
       const { data } = await supabase
         .from("absence_requests")
         .select(
-          "id, absence_date, status, admin_note, decided_at, absence_lessons(lesson_number, substitute_teacher_id, teachers:substitute_teacher_id(full_name))",
+          "id, absence_date, status, admin_note, decided_at, absence_lessons(lesson_number, status, admin_note, substitute_teacher_id, teachers:substitute_teacher_id(full_name))",
         )
         .eq("teacher_id", teacher.id)
         .order("absence_date", { ascending: false });
@@ -68,8 +74,12 @@ function MyRequestsPage() {
                     {r.absence_lessons.length} שיעורים
                   </div>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS[r.status].className}`}>
-                  {STATUS[r.status].label}
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS[r.status].className}`}
+                >
+                  {r.status === "approved" && r.absence_lessons.some((l) => l.status === "rejected")
+                    ? "אושר חלקית"
+                    : STATUS[r.status].label}
                 </span>
               </div>
               <table className="mt-3 w-full text-sm">
@@ -77,15 +87,31 @@ function MyRequestsPage() {
                   {r.absence_lessons
                     .sort((a, b) => a.lesson_number - b.lesson_number)
                     .map((l) => (
-                      <tr key={l.lesson_number} className="border-t">
+                      <tr key={l.lesson_number} className="border-t align-top">
                         <td className="py-1.5">שיעור {l.lesson_number}</td>
                         <td className="py-1.5">{l.teachers?.full_name ?? "—"}</td>
+                        <td className="py-1.5">
+                          {r.status !== "pending" && (
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS[l.status].className}`}
+                            >
+                              {STATUS[l.status].label}
+                            </span>
+                          )}
+                          {l.status === "rejected" && l.admin_note && (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              סיבה: {l.admin_note}
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))}
                 </tbody>
               </table>
               {r.admin_note && (
-                <div className="mt-2 rounded-md bg-accent px-2 py-1 text-sm">{r.status === "rejected" ? "סיבת הדחייה" : "הערה"}: {r.admin_note}</div>
+                <div className="mt-2 rounded-md bg-accent px-2 py-1 text-sm">
+                  הערה: {r.admin_note}
+                </div>
               )}
             </div>
           ))}

@@ -25,12 +25,7 @@ async function appBaseUrl() {
   }
 }
 
-async function sendEmail(input: {
-  to: string;
-  subject: string;
-  html: string;
-  from?: string;
-}) {
+async function sendEmail(input: { to: string; subject: string; html: string; from?: string }) {
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   if (!RESEND_API_KEY) {
     console.log("[email skipped — Resend not configured]", input.to, input.subject);
@@ -119,22 +114,49 @@ export const notifyTeacherDecision = createServerFn({ method: "POST" })
       .object({
         teacherEmail: z.string().email(),
         absenceDate: z.string(),
-        approved: z.boolean(),
         note: z.string().optional(),
+        lessons: z
+          .array(
+            z.object({
+              lesson: z.number(),
+              approved: z.boolean(),
+              reason: z.string().optional(),
+            }),
+          )
+          .min(1),
       })
       .parse(d),
   )
   .handler(async ({ data }) => {
+    const approvedCount = data.lessons.filter((l) => l.approved).length;
+    const title =
+      approvedCount === data.lessons.length
+        ? "בקשת ההיעדרות אושרה"
+        : approvedCount === 0
+          ? "בקשת ההיעדרות נדחתה"
+          : "בקשת ההיעדרות טופלה: חלק מהשיעורים אושרו וחלק נדחו";
+    const link = `${await appBaseUrl()}/my-requests`;
+    const rows = data.lessons
+      .map(
+        (l) =>
+          `<tr><td>${l.lesson}</td><td style="color:${l.approved ? "#15803d" : "#b91c1c"};">${l.approved ? "אושר" : "נדחה"}</td><td>${l.reason ? escapeHtml(l.reason) : ""}</td></tr>`,
+      )
+      .join("");
     const html = `
       <div dir="rtl" style="font-family: Arial, sans-serif;">
-        <h2>${data.approved ? "בקשת ההיעדרות אושרה" : "בקשת ההיעדרות נדחתה"}</h2>
+        <h2>${title}</h2>
         <p>תאריך: ${escapeHtml(data.absenceDate)}</p>
-        ${data.note ? `<p><strong>${data.approved ? "הערה" : "סיבת הדחייה"}:</strong> ${escapeHtml(data.note)}</p>` : ""}
+        <table border="1" cellpadding="6" style="border-collapse:collapse;">
+          <thead><tr><th>שיעור</th><th>החלטה</th><th>סיבת הדחייה</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        ${data.note ? `<p><strong>הערה:</strong> ${escapeHtml(data.note)}</p>` : ""}
+        <p style="margin:24px 0;">
+          <a href="${link}" style="display:inline-block;background:#0e7490;color:#ffffff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">
+            לצפייה בבקשות שלי
+          </a>
+        </p>
       </div>
     `;
-    return sendEmail({
-      to: data.teacherEmail,
-      subject: data.approved ? "בקשת ההיעדרות אושרה" : "בקשת ההיעדרות נדחתה",
-      html,
-    });
+    return sendEmail({ to: data.teacherEmail, subject: title, html });
   });
